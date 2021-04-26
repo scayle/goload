@@ -5,7 +5,9 @@
 	"build": {
 		"dockerfile": "Dockerfile"
 	},
+	"workspaceMount": "source=${localWorkspaceFolder},target=/goload,type=bind,consistency=cached",
 	"workspaceFolder": "/goload",
+
 	// Set *default* container specific settings.json values on container create.
 	"settings": {
 		"terminal.integrated.shell.linux": "/bin/bash",

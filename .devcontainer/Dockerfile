@@ -11,5 +11,3 @@ RUN go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.37.0
 RUN go install -v github.com/uudashr/gopkgs/v2/cmd/gopkgs@latest
 
 WORKDIR /goload
-
-CMD gin -i -a 10000
