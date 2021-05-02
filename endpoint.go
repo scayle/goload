@@ -12,7 +12,7 @@ type Endpoint interface {
 	// The context is used to cancel the request on timeout.
 	Execute(ctx context.Context) error
 
-	GetRequestsPerMinute() uint
+	GetRequestsPerMinute() int32
 }
 
 func getTimeoutForEndpoint(endpoint Endpoint, options *LoadTestOptions) (time.Duration, bool) {

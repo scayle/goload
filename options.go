@@ -1,6 +1,7 @@
 package goload
 
 import (
+	"math"
 	"sort"
 	"time"
 )
@@ -16,8 +17,8 @@ type LoadTestOptions struct {
 }
 
 type RPMStrategy interface {
-	GetStartingRPM() uint
-	GetRPMForMinute(minute uint) uint
+	GetStartingRPM() int32
+	GetRPMForMinute(minute int32) int32
 }
 
 type LoadTestConfig func(options *LoadTestOptions)
@@ -41,18 +42,18 @@ func WithDuration(loadTestDuration time.Duration) LoadTestConfig {
 }
 
 type StaticRPMStrategy struct {
-	rpm uint
+	rpm int32
 }
 
-func (strategy *StaticRPMStrategy) GetStartingRPM() uint {
+func (strategy *StaticRPMStrategy) GetStartingRPM() int32 {
 	return strategy.rpm
 }
 
-func (strategy *StaticRPMStrategy) GetRPMForMinute(minute uint) uint {
+func (strategy *StaticRPMStrategy) GetRPMForMinute(minute int32) int32 {
 	return strategy.rpm
 }
 
-func WithStaticRPM(rpm uint) LoadTestConfig {
+func WithStaticRPM(rpm int32) LoadTestConfig {
 	return func(options *LoadTestOptions) {
 		options.RPMStrategy = &StaticRPMStrategy{
 			rpm: rpm,
@@ -65,15 +66,15 @@ type RampUpRPMStrategy struct {
 }
 
 type RampUpPoints struct {
-	Minute uint
-	RPM    uint
+	Minute int32
+	RPM    int32
 }
 
-func (strategy *RampUpRPMStrategy) GetStartingRPM() uint {
+func (strategy *RampUpRPMStrategy) GetStartingRPM() int32 {
 	return strategy.points[0].RPM
 }
 
-func (strategy *RampUpRPMStrategy) GetRPMForMinute(minute uint) uint {
+func (strategy *RampUpRPMStrategy) GetRPMForMinute(minute int32) int32 {
 	// In case there is a direct match
 	for _, point := range strategy.points {
 		if point.Minute == minute {
@@ -92,11 +93,13 @@ func (strategy *RampUpRPMStrategy) GetRPMForMinute(minute uint) uint {
 		nextPoint := strategy.points[nextIndex]
 
 		if point.Minute < minute && minute < nextPoint.Minute {
-			rpmDiffBetweenPoints := nextPoint.RPM - point.RPM
-			timeDiffBetweenPoints := nextPoint.Minute - point.Minute
-			timeDiffToPreviousPoint := point.Minute - minute
+			rpmDiffBetweenPoints := float64(nextPoint.RPM) - float64(point.RPM)
+			timeDiffBetweenPoints := float64(nextPoint.Minute) - float64(point.Minute)
+			timeDiffToPreviousPoint := float64(minute) - float64(point.Minute)
 
-			return point.RPM + (rpmDiffBetweenPoints * timeDiffToPreviousPoint / timeDiffBetweenPoints)
+			return int32(
+				float64(point.RPM) + math.Floor(rpmDiffBetweenPoints*timeDiffToPreviousPoint/timeDiffBetweenPoints),
+			)
 		}
 	}
 

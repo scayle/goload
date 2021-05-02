@@ -48,8 +48,8 @@ func RunLoadtest(
 	}()
 
 	go func() {
-		minute := uint(0)
-		t := time.NewTimer(time.Minute)
+		minute := int32(0)
+		t := time.NewTicker(time.Minute)
 
 		for range t.C {
 			minute++
