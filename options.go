@@ -1,6 +1,9 @@
 package goload
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
 type LoadTestOptions struct {
 	Endpoints []Endpoint
@@ -9,7 +12,12 @@ type LoadTestOptions struct {
 
 	LoadTestDuration time.Duration
 
-	RequestsPerMinutePerNode uint
+	RPMStrategy RPMStrategy
+}
+
+type RPMStrategy interface {
+	GetStartingRPM() uint
+	GetRPMForMinute(minute uint) uint
 }
 
 type LoadTestConfig func(options *LoadTestOptions)
@@ -32,21 +40,82 @@ func WithDuration(loadTestDuration time.Duration) LoadTestConfig {
 	}
 }
 
-func WithRequestsPerMinutePerNode(rpm uint) LoadTestConfig {
+type StaticRPMStrategy struct {
+	rpm uint
+}
+
+func (strategy *StaticRPMStrategy) GetStartingRPM() uint {
+	return strategy.rpm
+}
+
+func (strategy *StaticRPMStrategy) GetRPMForMinute(minute uint) uint {
+	return strategy.rpm
+}
+
+func WithStaticRPM(rpm uint) LoadTestConfig {
 	return func(options *LoadTestOptions) {
-		options.RequestsPerMinutePerNode = rpm
+		options.RPMStrategy = &StaticRPMStrategy{
+			rpm: rpm,
+		}
 	}
 }
 
-func (options *LoadTestOptions) GetRequestsPerMinute() uint {
-	if options.RequestsPerMinutePerNode > 0 {
-		return options.RequestsPerMinutePerNode
+type RampUpRPMStrategy struct {
+	points []RampUpPoints
+}
+
+type RampUpPoints struct {
+	Minute uint
+	RPM    uint
+}
+
+func (strategy *RampUpRPMStrategy) GetStartingRPM() uint {
+	return strategy.points[0].RPM
+}
+
+func (strategy *RampUpRPMStrategy) GetRPMForMinute(minute uint) uint {
+	// In case there is a direct match
+	for _, point := range strategy.points {
+		if point.Minute == minute {
+			return point.RPM
+		}
 	}
 
-	totalRequestsPerMinute := uint(0)
-	for _, endpoint := range options.Endpoints {
-		totalRequestsPerMinute += endpoint.GetRequestsPerMinute()
+	firstPoint := strategy.points[0]
+	if firstPoint.Minute > minute {
+		return firstPoint.RPM
 	}
 
-	return totalRequestsPerMinute
+	for index := 0; index < len(strategy.points)-1; index++ {
+		nextIndex := index + 1
+		point := strategy.points[index]
+		nextPoint := strategy.points[nextIndex]
+
+		if point.Minute < minute && minute < nextPoint.Minute {
+			rpmDiffBetweenPoints := nextPoint.RPM - point.RPM
+			timeDiffBetweenPoints := nextPoint.Minute - point.Minute
+			timeDiffToPreviousPoint := point.Minute - minute
+
+			return point.RPM + (rpmDiffBetweenPoints * timeDiffToPreviousPoint / timeDiffBetweenPoints)
+		}
+	}
+
+	lastPoint := strategy.points[len(strategy.points)-1]
+	return lastPoint.RPM
+}
+
+func WithRampUp(points []RampUpPoints) LoadTestConfig {
+	isSorted := sort.SliceIsSorted(points, func(i, j int) bool {
+		return points[i].Minute < points[j].Minute
+	})
+
+	if !isSorted {
+		panic("config isn't sorted")
+	}
+
+	return func(options *LoadTestOptions) {
+		options.RPMStrategy = &RampUpRPMStrategy{
+			points: points,
+		}
+	}
 }
