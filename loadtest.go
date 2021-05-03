@@ -23,7 +23,7 @@ func RunLoadtest(
 
 	done := make(chan bool)
 	timer := time.NewTicker(
-		time.Minute / time.Duration(options.GetRequestsPerMinute()),
+		time.Minute / time.Duration(options.RPMStrategy.GetStartingRPM()),
 	)
 
 	if options.LoadTestDuration.Nanoseconds() > 0 {
@@ -45,6 +45,23 @@ func RunLoadtest(
 		fmt.Println("Cancelling timer")
 		timer.Stop()
 		done <- true
+	}()
+
+	go func() {
+		minute := int32(0)
+		t := time.NewTicker(time.Minute)
+
+		for range t.C {
+			minute++
+
+			rpm := options.RPMStrategy.GetRPMForMinute(minute)
+
+			fmt.Println("Increasing RPM to", rpm)
+
+			timer.Reset(
+				time.Minute / time.Duration(rpm),
+			)
+		}
 	}()
 
 	endpointRandomizer := NewEndpointRandomizer(options.Endpoints)

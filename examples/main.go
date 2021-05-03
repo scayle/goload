@@ -8,7 +8,15 @@ import (
 
 func main() {
 	goload.RunLoadtest(
-		goload.WithDuration(2*time.Minute),
+		goload.WithDuration(10*time.Minute),
 		goload.WithEndpoint(&HTTPEndpoint{}),
+		goload.WithRampUp(
+			[]goload.RampUpPoints{
+				{Minute: 2, RPM: 10},
+				{Minute: 3, RPM: 12},
+				{Minute: 6, RPM: 16},
+				{Minute: 8, RPM: 20},
+			},
+		),
 	)
 }

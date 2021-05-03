@@ -22,6 +22,6 @@ func (e *HTTPEndpoint) Execute(ctx context.Context) error {
 	return nil
 }
 
-func (e *HTTPEndpoint) GetRequestsPerMinute() uint {
+func (e *HTTPEndpoint) GetRequestsPerMinute() int32 {
 	return 16
 }

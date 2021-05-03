@@ -23,7 +23,7 @@ type HTTPEndpoint struct {
 type HTTPEndpointOptions struct {
 	URI *url.URL
 
-	RequestsPerMinute uint
+	RequestsPerMinute int32
 
 	Method HTTPMethod
 
@@ -52,7 +52,7 @@ func WithHTTPMethod(method HTTPMethod) HTTPEndpointConfig {
 	}
 }
 
-func WithRequestsPerMinute(rpm uint) HTTPEndpointConfig {
+func WithRequestsPerMinute(rpm int32) HTTPEndpointConfig {
 	return func(options *HTTPEndpointOptions) {
 		options.RequestsPerMinute = rpm
 	}
@@ -93,7 +93,7 @@ func NewHTTPEndpoint(
 	}
 }
 
-func (endpoint *HTTPEndpoint) GetRequestsPerMinute() uint {
+func (endpoint *HTTPEndpoint) GetRequestsPerMinute() int32 {
 	return endpoint.Options.RequestsPerMinute
 }
 
