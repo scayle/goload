@@ -10,8 +10,8 @@ func main() {
 	goload.RunLoadtest(
 		goload.WithDuration(10*time.Minute),
 		goload.WithEndpoint(&HTTPEndpoint{}),
-		goload.WithRampUp(
-			[]goload.RampUpPoints{
+		goload.WithRampUpRPM(
+			[]goload.Step{
 				{Minute: 2, RPM: 10},
 				{Minute: 3, RPM: 12},
 				{Minute: 6, RPM: 16},

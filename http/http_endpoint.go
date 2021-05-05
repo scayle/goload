@@ -97,6 +97,14 @@ func (endpoint *HTTPEndpoint) GetRequestsPerMinute() int32 {
 	return endpoint.Options.RequestsPerMinute
 }
 
+func (endpoint *HTTPEndpoint) Name() string {
+	return fmt.Sprintf(
+		"%s %s",
+		endpoint.Options.Method,
+		endpoint.Options.URI.String(),
+	)
+}
+
 func (endpoint *HTTPEndpoint) Execute(ctx context.Context) error {
 	client := endpoint.Options.GetClient()
 

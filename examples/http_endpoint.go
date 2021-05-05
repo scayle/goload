@@ -25,3 +25,7 @@ func (e *HTTPEndpoint) Execute(ctx context.Context) error {
 func (e *HTTPEndpoint) GetRequestsPerMinute() int32 {
 	return 16
 }
+
+func (e *HTTPEndpoint) Name() string {
+	return "Example HTTP endpoint"
+}
