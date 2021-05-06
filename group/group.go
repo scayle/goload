@@ -10,7 +10,7 @@ import (
 //
 // This pattern has been inspired by the `testing.T.Run` usage where you can have a function which registers sub tests.
 type LoadTestGroup interface {
-	Register(
+	Test(
 		name string,
 		rpm int32,
 		handler func(ctx context.Context) error,
@@ -39,7 +39,7 @@ func (e *groupEndpoint) Name() string {
 	return e.name
 }
 
-func (g *group) Register(
+func (g *group) Test(
 	name string,
 	rpm int32,
 	handler func(ctx context.Context) error,
@@ -67,9 +67,7 @@ func (g *group) Register(
 // }
 //
 // and then registerd using `WithGroup` in the call to `goload.RunLoadtest`.
-func WithGroup(
-	s func(group LoadTestGroup),
-) goload.LoadTestConfig {
+func WithGroup(s func(group LoadTestGroup)) goload.LoadTestConfig {
 	g := &group{}
 	s(g)
 
