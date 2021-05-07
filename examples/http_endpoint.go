@@ -9,7 +9,6 @@ import (
 type HTTPEndpoint struct{}
 
 func (e *HTTPEndpoint) Execute(ctx context.Context) error {
-	fmt.Println("Request")
 	res, err := http.Get("http://test.k6.io")
 	if err != nil {
 		return err

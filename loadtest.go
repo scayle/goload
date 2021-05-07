@@ -11,6 +11,14 @@ import (
 	"time"
 )
 
+type LoadTest struct {
+	UI      *UI
+	Options *LoadTestOptions
+
+	done   chan bool
+	ticker *time.Ticker
+}
+
 func RunLoadtest(
 	configs ...LoadTestConfig,
 ) {
@@ -21,20 +29,37 @@ func RunLoadtest(
 		config(options)
 	}
 
-	done := make(chan bool)
-	timer := time.NewTicker(
-		time.Minute / time.Duration(options.RPMStrategy.GetStartingRPM()),
-	)
+	ui := NewUI()
 
-	if options.LoadTestDuration.Nanoseconds() > 0 {
-		// Cancel the timer after the duration of the loadtest has elapsed
-		go func() {
-			time.Sleep(options.LoadTestDuration)
-			done <- true
-			timer.Stop()
-		}()
+	ui.PrintStartMessage()
+
+	loadtest := &LoadTest{
+		Options: options,
+		done:    make(chan bool),
+		ticker:  initializeTicker(options, ui),
 	}
 
+	loadtest.WaitForLoadTestEnd()
+	loadtest.ListenForAbort()
+
+	loadtest.Run()
+}
+
+func (loadtest *LoadTest) WaitForLoadTestEnd() {
+	duration := loadtest.Options.LoadTestDuration
+	if duration.Nanoseconds() == 0 {
+		return
+	}
+
+	// Cancel the timer after the duration of the loadtest has elapsed
+	go func() {
+		time.Sleep(duration)
+		loadtest.done <- true
+		loadtest.ticker.Stop()
+	}()
+}
+
+func (loadtest *LoadTest) ListenForAbort() {
 	// Cancel the loadtest if the program is stopped using OS signals
 	go func() {
 		ch := make(chan os.Signal, 1)
@@ -42,45 +67,71 @@ func RunLoadtest(
 
 		<-ch
 
-		fmt.Println("Cancelling timer")
-		timer.Stop()
-		done <- true
+		fmt.Println()
+		loadtest.UI.PrintAbortMessage()
+
+		loadtest.done <- true
+		loadtest.ticker.Stop()
 	}()
+}
+
+func initializeTicker(options *LoadTestOptions, ui *UI) *time.Ticker {
+	initialRPM := options.RPMStrategy.GetRPMForMinute(0)
+	ticker := time.NewTicker(
+		time.Minute / time.Duration(initialRPM),
+	)
+
+	ui.ReportInitialRPM(initialRPM)
 
 	go func() {
 		minute := int32(0)
+		previousRPM := initialRPM
 		t := time.NewTicker(time.Minute)
 
 		for range t.C {
 			minute++
-
 			rpm := options.RPMStrategy.GetRPMForMinute(minute)
 
-			fmt.Println("Increasing RPM to", rpm)
+			if previousRPM == rpm {
+				continue
+			}
 
-			timer.Reset(
+			if previousRPM < rpm {
+				ui.ReportIncreaseInRPM(rpm)
+			} else {
+				ui.ReportDecreaseInRPM(rpm)
+			}
+
+			ticker.Reset(
 				time.Minute / time.Duration(rpm),
 			)
+			previousRPM = rpm
 		}
 	}()
 
-	endpointRandomizer := NewEndpointRandomizer(options.Endpoints)
+	return ticker
+}
+
+func (loadtest *LoadTest) Run() {
+	endpointRandomizer := NewEndpointRandomizer(
+		loadtest.Options.Endpoints,
+	)
 	g := new(sync.WaitGroup)
 
 loop:
 	for {
 		select {
-		case <-done:
+		case <-loadtest.done:
 			break loop
 
-		case <-timer.C:
+		case <-loadtest.ticker.C:
 			go func() {
 				g.Add(1)
 				defer g.Done()
 
 				endpoint := endpointRandomizer.PickRandomEndpoint()
 				ctx := context.Background()
-				if timeout, ok := getTimeoutForEndpoint(endpoint, options); ok {
+				if timeout, ok := getTimeoutForEndpoint(endpoint, loadtest.Options); ok {
 					_ctx, cancel := context.WithTimeout(ctx, timeout)
 					defer cancel()
 
@@ -96,5 +147,6 @@ loop:
 		}
 	}
 
+	// Wait until all requests have finished
 	g.Wait()
 }

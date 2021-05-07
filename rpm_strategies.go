@@ -6,7 +6,6 @@ import (
 )
 
 type RPMStrategy interface {
-	GetStartingRPM() int32
 	GetRPMForMinute(minute int32) int32
 }
 
@@ -18,10 +17,6 @@ func NewStaticRPMStrategy(rpm int32) RPMStrategy {
 	return &StaticRPMStrategy{
 		rpm: rpm,
 	}
-}
-
-func (strategy *StaticRPMStrategy) GetStartingRPM() int32 {
-	return strategy.rpm
 }
 
 func (strategy *StaticRPMStrategy) GetRPMForMinute(minute int32) int32 {
@@ -49,10 +44,6 @@ func NewRampUpRPMStrategy(steps []Step) RPMStrategy {
 type Step struct {
 	Minute int32
 	RPM    int32
-}
-
-func (strategy *RampUpRPMStrategy) GetStartingRPM() int32 {
-	return strategy.steps[0].RPM
 }
 
 func (strategy *RampUpRPMStrategy) GetRPMForMinute(minute int32) int32 {

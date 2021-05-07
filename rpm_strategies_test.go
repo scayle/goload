@@ -7,19 +7,14 @@ import (
 )
 
 func TestStaticRPMStrategy(t *testing.T) {
-	t.Run("GetStartingRPM should return the provided RPM", func(t *testing.T) {
+	t.Run("GetRPMForMinute should return the static RPM for any minute", func(t *testing.T) {
 		strategy := NewStaticRPMStrategy(50)
 
 		assert.Equal(
 			t,
 			int32(50),
-			strategy.GetStartingRPM(),
+			strategy.GetRPMForMinute(0),
 		)
-	})
-
-	t.Run("GetRPMForMinute should return the static RPM for any minute", func(t *testing.T) {
-		strategy := NewStaticRPMStrategy(50)
-
 		assert.Equal(
 			t,
 			int32(50),
