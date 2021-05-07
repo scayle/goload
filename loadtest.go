@@ -131,8 +131,8 @@ loop:
 
 				endpoint := endpointRandomizer.PickRandomEndpoint()
 				ctx := context.Background()
-				if timeout, ok := getTimeoutForEndpoint(endpoint, loadtest.Options); ok {
-					_ctx, cancel := context.WithTimeout(ctx, timeout)
+				if loadtest.Options.DefaultEndpointTimeout.Nanoseconds() > 0 {
+					_ctx, cancel := context.WithTimeout(ctx, loadtest.Options.DefaultEndpointTimeout)
 					defer cancel()
 
 					ctx = _ctx
