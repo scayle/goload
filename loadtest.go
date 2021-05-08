@@ -14,6 +14,7 @@ import (
 type LoadTest struct {
 	UI      *UI
 	Options *LoadTestOptions
+	Results *LoadTestResults
 
 	done   chan bool
 	ticker *time.Ticker
@@ -29,20 +30,25 @@ func RunLoadtest(
 		config(options)
 	}
 
-	ui := NewUI()
+	ui := NewUI(os.Stdout)
 
 	ui.PrintStartMessage()
 
 	loadtest := &LoadTest{
 		Options: options,
-		done:    make(chan bool),
-		ticker:  initializeTicker(options, ui),
+		Results: NewResults(options.Endpoints),
+		UI:      ui,
+
+		done:   make(chan bool),
+		ticker: initializeTicker(options, ui),
 	}
 
 	loadtest.WaitForLoadTestEnd()
 	loadtest.ListenForAbort()
 
 	loadtest.Run()
+
+	ui.ReportResults(loadtest.Results)
 }
 
 func (loadtest *LoadTest) WaitForLoadTestEnd() {
@@ -138,11 +144,17 @@ loop:
 					ctx = _ctx
 				}
 
+				startTime := time.Now()
 				err := endpoint.Execute(ctx)
-				if err != nil {
-					fmt.Println(err)
-				}
-				// TODO: Record error
+				endTime := time.Now()
+
+				loadtest.Results.SaveEndpointResult(
+					endpoint,
+					EndpointResult{
+						Failed:   err != nil,
+						Duration: endTime.Sub(startTime),
+					},
+				)
 			}()
 		}
 	}
