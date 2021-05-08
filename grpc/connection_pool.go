@@ -35,3 +35,9 @@ func NewGRPCConnectionPool(
 func (pool *GRPCConnectionPool) GetConnection() *grpc.ClientConn {
 	return pool.connections[rand.Intn(len(pool.connections))]
 }
+
+func (pool *GRPCConnectionPool) Close() {
+	for _, conn := range pool.connections {
+		conn.Close()
+	}
+}
