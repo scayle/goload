@@ -24,7 +24,7 @@ func (ui *UI) PrintStartMessage() {
 
 	fmt.Fprintf(
 		ui.output,
-		"Starting a %s Load Test\n",
+		"Starting a %s Test\n",
 		style.Render("GoLoad"),
 	)
 	fmt.Fprintln(ui.output)
