@@ -2,6 +2,7 @@ package group
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/HenriBeck/goload"
 )
@@ -15,10 +16,14 @@ type LoadTestGroup interface {
 		rpm int32,
 		handler func(ctx context.Context) error,
 	)
+
+	SetGroupName(groupName string)
 }
 
 type group struct {
 	endpoints []goload.Endpoint
+
+	name string
 }
 
 type groupEndpoint struct {
@@ -44,11 +49,25 @@ func (g *group) Test(
 	rpm int32,
 	handler func(ctx context.Context) error,
 ) {
-	g.endpoints = append(g.endpoints, &groupEndpoint{
-		name:    name,
-		rpm:     rpm,
-		handler: handler,
-	})
+	if g.name != "" {
+		g.endpoints = append(g.endpoints, &groupEndpoint{
+			name:    fmt.Sprintf("%s/%s", g.name, name),
+			rpm:     rpm,
+			handler: handler,
+		})
+	} else {
+		g.endpoints = append(g.endpoints, &groupEndpoint{
+			name:    name,
+			rpm:     rpm,
+			handler: handler,
+		})
+	}
+}
+
+func (g *group) SetGroupName(
+	groupName string,
+) {
+	g.name = groupName
 }
 
 // `WithGroup` allows a function to be passed
