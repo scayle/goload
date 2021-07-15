@@ -3,6 +3,7 @@ package goload
 import (
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/spenczar/tdigest"
@@ -14,37 +15,27 @@ type EndpointResult struct {
 }
 
 type EndpointResults struct {
-	Name    string
-	lock    sync.Mutex
-	results []EndpointResult
-	td      *tdigest.TDigest
+	Name          string
+	lock          sync.Mutex
+	total         uint64
+	failed        uint64
+	totalDuration uint64
+	td            *tdigest.TDigest
 }
 
-func (e *EndpointResults) GetTotalRequests() int {
-	return len(e.results)
+func (e *EndpointResults) GetTotalRequests() uint64 {
+	return atomic.LoadUint64(&e.total)
 }
 
-func (e *EndpointResults) GetTotalFailedRequests() int {
-	c := 0
-	for _, r := range e.results {
-		if r.Failed {
-			c++
-		}
-	}
-
-	return c
+func (e *EndpointResults) GetTotalFailedRequests() uint64 {
+	return atomic.LoadUint64(&e.failed)
 }
 
 func (e *EndpointResults) GetAverageDuration() float64 {
-	totalDuration := float64(0)
-	for _, r := range e.results {
-		totalDuration += float64(r.Duration.Milliseconds())
-	}
-
-	return totalDuration / float64(len(e.results))
+	return float64(atomic.LoadUint64(&e.totalDuration)) / float64(atomic.LoadUint64(&e.total))
 }
 
-func (e *EndpointResults) GetPercentile(p float64) float64 {
+func (e *EndpointResults) GetPercentileDuration(p float64) float64 {
 	return e.td.Quantile(p)
 }
 
@@ -83,8 +74,17 @@ func (results *LoadTestResults) Iter() []*EndpointResults {
 func (results *LoadTestResults) SaveEndpointResult(Endpoint Endpoint, result EndpointResult) {
 	e := results.endpoints[Endpoint.Name()]
 
+	atomic.AddUint64(&e.total, 1)
+	if result.Failed {
+		atomic.AddUint64(&e.failed, 1)
+	}
+
+	atomic.AddUint64(
+		&e.totalDuration,
+		uint64(result.Duration.Milliseconds()),
+	)
+
 	e.lock.Lock()
-	e.results = append(e.results, result)
 	e.td.Add(float64(result.Duration.Milliseconds()), 1)
 	e.lock.Unlock()
 }

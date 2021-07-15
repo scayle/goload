@@ -188,7 +188,7 @@ func addAverageResponseTimeColumn(columns [][]string, results *LoadTestResults) 
 func addPercentileResponseTimeColumn(columns [][]string, results *LoadTestResults, p float64) {
 	items := []string{}
 	for _, endpoint := range results.Iter() {
-		percentile := endpoint.GetPercentile(p)
+		percentile := endpoint.GetPercentileDuration(p)
 		if math.IsNaN(percentile) {
 			items = append(items, "")
 			continue
