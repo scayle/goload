@@ -11,7 +11,7 @@ type HTTPClientPool struct {
 
 type HTTPTransportOption = func(request *http.Request)
 
-func WithUserAgentOption(userAgent string) HTTPTransportOption {
+func WithUserAgent(userAgent string) HTTPTransportOption {
 	return func(request *http.Request) {
 		if request.Header.Get("user-agent") == "" {
 			request.Header.Set("user-agent", userAgent)
