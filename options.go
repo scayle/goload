@@ -1,6 +1,7 @@
 package goload
 
 import (
+	"context"
 	"time"
 )
 
@@ -12,6 +13,8 @@ type LoadTestOptions struct {
 	LoadTestDuration time.Duration
 
 	RPMStrategy RPMStrategy
+
+	ContextModifiers []func(ctx context.Context) context.Context
 }
 
 type LoadTestConfig func(options *LoadTestOptions)
@@ -19,6 +22,12 @@ type LoadTestConfig func(options *LoadTestOptions)
 func WithEndpoint(endpoint Endpoint) LoadTestConfig {
 	return func(options *LoadTestOptions) {
 		options.Endpoints = append(options.Endpoints, endpoint)
+	}
+}
+
+func WithContextModifier(fn func(ctx context.Context) context.Context) LoadTestConfig {
+	return func(options *LoadTestOptions) {
+		options.ContextModifiers = append(options.ContextModifiers, fn)
 	}
 }
 

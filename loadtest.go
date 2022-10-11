@@ -136,7 +136,12 @@ loop:
 				defer g.Done()
 
 				endpoint := endpointRandomizer.PickRandomEndpoint()
+
 				ctx := context.Background()
+				for _, fn := range loadtest.Options.ContextModifiers {
+					ctx = fn(ctx)
+				}
+
 				if loadtest.Options.DefaultEndpointTimeout.Nanoseconds() > 0 {
 					_ctx, cancel := context.WithTimeout(ctx, loadtest.Options.DefaultEndpointTimeout)
 					defer cancel()
