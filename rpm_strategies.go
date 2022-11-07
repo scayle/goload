@@ -5,10 +5,14 @@ import (
 	"sort"
 )
 
+// An RPM strategy defines how many requests per minute will be sent to the target.
+//
+// The GetRPMForMinute function will be called every minute and the loadtest will be adjusted as such.
 type RPMStrategy interface {
 	GetRPMForMinute(minute int32) int32
 }
 
+// A static rpm strategy which outputs a constant request number to the target.
 type StaticRPMStrategy struct {
 	rpm int32
 }

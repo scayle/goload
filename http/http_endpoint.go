@@ -3,6 +3,7 @@ package goload_http
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -25,7 +26,9 @@ type HTTPEndpointOptions struct {
 
 	RequestsPerMinute int32
 
-	Method HTTPMethod
+	Method string
+
+	Body io.Reader
 
 	GetClient func() *http.Client
 }
@@ -46,7 +49,7 @@ func WithHTTPClient(client *http.Client) HTTPEndpointConfig {
 	}
 }
 
-func WithHTTPMethod(method HTTPMethod) HTTPEndpointConfig {
+func WithHTTPMethod(method string) HTTPEndpointConfig {
 	return func(options *HTTPEndpointOptions) {
 		options.Method = method
 	}
@@ -79,7 +82,8 @@ func NewHTTPEndpoint(
 	configs ...HTTPEndpointConfig,
 ) goload.Endpoint {
 	options := &HTTPEndpointOptions{
-		Method: HTTPMethodGet,
+		Method: http.MethodGet,
+		Body:   http.NoBody,
 		GetClient: func() *http.Client {
 			return http.DefaultClient
 		},
@@ -108,33 +112,14 @@ func (endpoint *HTTPEndpoint) Name() string {
 func (endpoint *HTTPEndpoint) Execute(ctx context.Context) error {
 	client := endpoint.Options.GetClient()
 
-	var req *http.Request
-	// TODO: more HTTP methods
-	switch endpoint.Options.Method {
-	case HTTPMethodGet:
-		_req, err := http.NewRequestWithContext(
-			ctx,
-			"GET",
-			endpoint.Options.URI.String(),
-			nil,
-		)
-		if err != nil {
-			return err
-		}
-
-		req = _req
-	case HTTPMethodPost:
-		_req, err := http.NewRequestWithContext(
-			ctx,
-			"POST",
-			endpoint.Options.URI.String(),
-			nil, // TODO: Body
-		)
-		if err != nil {
-			return err
-		}
-
-		req = _req
+	req, err := http.NewRequestWithContext(
+		ctx,
+		endpoint.Options.Method,
+		endpoint.Options.URI.String(),
+		endpoint.Options.Body,
+	)
+	if err != nil {
+		return err
 	}
 
 	res, err := client.Do(req)

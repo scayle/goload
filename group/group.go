@@ -64,9 +64,7 @@ func (g *group) Test(
 	}
 }
 
-func (g *group) SetGroupName(
-	groupName string,
-) {
+func (g *group) SetGroupName(groupName string) {
 	g.name = groupName
 }
 
@@ -75,22 +73,22 @@ func (g *group) SetGroupName(
 //
 // This can be used to write `testing` like function which look like:
 //
-// func LoadTestService(s group.LoadTestGroup) {
-//   s.Register("endpoint 1", 20, func(ctx context.Context) error {
-//     Code...
-//   })
+//	func LoadTestService(s group.LoadTestGroup) {
+//	  s.Register("endpoint 1", 20, func(ctx context.Context) error {
+//	    Code...
+//	  })
 //
-//   s.Register("endpoint 2", 30, func(ctx context.Context) error {
-//     Code...
-//   })
-// }
+//	  s.Register("endpoint 2", 30, func(ctx context.Context) error {
+//	    Code...
+//	  })
+//	}
 //
 // and then registerd using `WithGroup` in the call to `goload.RunLoadtest`.
-func WithGroup(s func(group LoadTestGroup)) goload.LoadTestConfig {
-	g := &group{}
-	s(g)
+func WithGroup(register func(group LoadTestGroup)) goload.LoadTestConfig {
+	group := &group{}
+	register(group)
 
 	return func(options *goload.LoadTestOptions) {
-		options.Endpoints = append(options.Endpoints, g.endpoints...)
+		options.Endpoints = append(options.Endpoints, group.endpoints...)
 	}
 }
