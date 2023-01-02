@@ -3,41 +3,44 @@ package goload_grpc
 import (
 	"log"
 	"math/rand"
+	"time"
 
 	"google.golang.org/grpc"
 )
 
-type GRPCConnectionPool struct {
-	connections []*grpc.ClientConn
+type ConnectionPool struct {
+	conns []*grpc.ClientConn
+	rand  *rand.Rand
 }
 
-func NewGRPCConnectionPool(
+func NewConnectionPool(
 	count int,
 	target string,
 	opts ...grpc.DialOption,
-) *GRPCConnectionPool {
-	connections := make([]*grpc.ClientConn, count)
+) *ConnectionPool {
+	conns := make([]*grpc.ClientConn, count)
 
 	for i := 0; i < count; i++ {
 		conn, err := grpc.Dial(target, opts...)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Unable to dial GRPC connection: %v", err)
 		}
 
-		connections[i] = conn
+		conns[i] = conn
 	}
 
-	return &GRPCConnectionPool{
-		connections: connections,
+	return &ConnectionPool{
+		conns: conns,
+		rand:  rand.New(rand.NewSource(time.Now().Unix())),
 	}
 }
 
-func (pool *GRPCConnectionPool) GetConnection() *grpc.ClientConn {
-	return pool.connections[rand.Intn(len(pool.connections))]
+func (pool *ConnectionPool) Connection() *grpc.ClientConn {
+	return pool.conns[pool.rand.Intn(len(pool.conns))]
 }
 
-func (pool *GRPCConnectionPool) Close() {
-	for _, conn := range pool.connections {
+func (pool *ConnectionPool) Close() {
+	for _, conn := range pool.conns {
 		conn.Close()
 	}
 }

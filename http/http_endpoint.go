@@ -10,60 +10,53 @@ import (
 	"github.com/HenriBeck/goload"
 )
 
-type HTTPMethod string
-
-const (
-	HTTPMethodGet  HTTPMethod = "GET"
-	HTTPMethodPost HTTPMethod = "POST"
-)
-
-type HTTPEndpoint struct {
-	Options *HTTPEndpointOptions
+type Endpoint struct {
+	options *EndpointOptions
 }
 
-type HTTPEndpointOptions struct {
-	URI *url.URL
+type EndpointOptions struct {
+	url *url.URL
 
-	RequestsPerMinute int32
+	requestsPerMinute int32
 
-	Method string
+	method string
 
-	Body io.Reader
+	body io.Reader
 
-	GetClient func() *http.Client
+	getClient func() *http.Client
 }
 
-type HTTPEndpointConfig func(options *HTTPEndpointOptions)
+type HTTPEndpointConfig func(options *EndpointOptions)
 
-func WithClientPool(pool *HTTPClientPool) HTTPEndpointConfig {
-	return func(options *HTTPEndpointOptions) {
-		options.GetClient = pool.GetClient
+func WithClientPool(pool *ClientPool) HTTPEndpointConfig {
+	return func(options *EndpointOptions) {
+		options.getClient = pool.Client
 	}
 }
 
 func WithHTTPClient(client *http.Client) HTTPEndpointConfig {
-	return func(options *HTTPEndpointOptions) {
-		options.GetClient = func() *http.Client {
+	return func(options *EndpointOptions) {
+		options.getClient = func() *http.Client {
 			return client
 		}
 	}
 }
 
 func WithHTTPMethod(method string) HTTPEndpointConfig {
-	return func(options *HTTPEndpointOptions) {
-		options.Method = method
+	return func(options *EndpointOptions) {
+		options.method = method
 	}
 }
 
 func WithRequestsPerMinute(rpm int32) HTTPEndpointConfig {
-	return func(options *HTTPEndpointOptions) {
-		options.RequestsPerMinute = rpm
+	return func(options *EndpointOptions) {
+		options.requestsPerMinute = rpm
 	}
 }
 
 func WithURL(uri url.URL) HTTPEndpointConfig {
-	return func(options *HTTPEndpointOptions) {
-		options.URI = &uri
+	return func(options *EndpointOptions) {
+		options.url = &uri
 	}
 }
 
@@ -73,18 +66,16 @@ func WithURLString(uri string) HTTPEndpointConfig {
 		panic(err)
 	}
 
-	return func(options *HTTPEndpointOptions) {
-		options.URI = parsedUri
+	return func(options *EndpointOptions) {
+		options.url = parsedUri
 	}
 }
 
-func NewHTTPEndpoint(
-	configs ...HTTPEndpointConfig,
-) goload.Endpoint {
-	options := &HTTPEndpointOptions{
-		Method: http.MethodGet,
-		Body:   http.NoBody,
-		GetClient: func() *http.Client {
+func NewEndpoint(configs ...HTTPEndpointConfig) goload.Endpoint {
+	options := &EndpointOptions{
+		method: http.MethodGet,
+		body:   http.NoBody,
+		getClient: func() *http.Client {
 			return http.DefaultClient
 		},
 	}
@@ -92,31 +83,31 @@ func NewHTTPEndpoint(
 		config(options)
 	}
 
-	return &HTTPEndpoint{
-		Options: options,
+	return &Endpoint{
+		options: options,
 	}
 }
 
-func (endpoint *HTTPEndpoint) GetRequestsPerMinute() int32 {
-	return endpoint.Options.RequestsPerMinute
+func (endpoint *Endpoint) GetRequestsPerMinute() int32 {
+	return endpoint.options.requestsPerMinute
 }
 
-func (endpoint *HTTPEndpoint) Name() string {
+func (endpoint *Endpoint) Name() string {
 	return fmt.Sprintf(
 		"%s %s",
-		endpoint.Options.Method,
-		endpoint.Options.URI.String(),
+		endpoint.options.method,
+		endpoint.options.url.String(),
 	)
 }
 
-func (endpoint *HTTPEndpoint) Execute(ctx context.Context) error {
-	client := endpoint.Options.GetClient()
+func (endpoint *Endpoint) Execute(ctx context.Context) error {
+	client := endpoint.options.getClient()
 
 	req, err := http.NewRequestWithContext(
 		ctx,
-		endpoint.Options.Method,
-		endpoint.Options.URI.String(),
-		endpoint.Options.Body,
+		endpoint.options.method,
+		endpoint.options.url.String(),
+		endpoint.options.body,
 	)
 	if err != nil {
 		return err

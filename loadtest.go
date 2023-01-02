@@ -3,7 +3,6 @@ package goload
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/signal"
 	"sync"
@@ -20,11 +19,7 @@ type LoadTest struct {
 	ticker *time.Ticker
 }
 
-func RunLoadtest(
-	configs ...LoadTestConfig,
-) {
-	rand.Seed(time.Now().UTC().UnixNano())
-
+func RunLoadtest(configs ...LoadTestConfig) {
 	options := &LoadTestOptions{}
 	for _, config := range configs {
 		config(options)

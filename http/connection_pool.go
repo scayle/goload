@@ -3,10 +3,12 @@ package goload_http
 import (
 	"math/rand"
 	"net/http"
+	"time"
 )
 
-type HTTPClientPool struct {
+type ClientPool struct {
 	clients []*http.Client
+	rand    *rand.Rand
 }
 
 type HTTPTransportOption = func(request *http.Request)
@@ -33,10 +35,10 @@ func (transport *transport) RoundTrip(request *http.Request) (*http.Response, er
 	return transport.innerTransport.RoundTrip(request)
 }
 
-func NewHTTPConnectionPool(
+func NewClientPool(
 	count int,
 	options ...HTTPTransportOption,
-) *HTTPClientPool {
+) *ClientPool {
 	clients := make([]*http.Client, count)
 
 	for i := 0; i < count; i++ {
@@ -48,11 +50,12 @@ func NewHTTPConnectionPool(
 		}
 	}
 
-	return &HTTPClientPool{
+	return &ClientPool{
 		clients: clients,
+		rand:    rand.New(rand.NewSource(time.Now().Unix())),
 	}
 }
 
-func (pool *HTTPClientPool) GetClient() *http.Client {
-	return pool.clients[rand.Intn(len(pool.clients))]
+func (pool *ClientPool) Client() *http.Client {
+	return pool.clients[pool.rand.Intn(len(pool.clients))]
 }

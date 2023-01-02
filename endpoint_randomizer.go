@@ -1,26 +1,50 @@
 package goload
 
-import "github.com/mroth/weightedrand"
+import (
+	"math/rand"
+	"time"
+)
+
+type randomizedEndpoint struct {
+	start, end int32
+	endpoint   Endpoint
+}
 
 type EndpointRandomizer struct {
-	chooser *weightedrand.Chooser
+	total     int32
+	endpoints []randomizedEndpoint
+	rand      *rand.Rand
 }
 
 func NewEndpointRandomizer(endpoints []Endpoint) *EndpointRandomizer {
-	choices := make([]weightedrand.Choice, len(endpoints))
+	randomizedEndpoints := make([]randomizedEndpoint, len(endpoints))
+	var total int32
 	for i, endpoint := range endpoints {
-		choices[i] = weightedrand.NewChoice(
-			endpoint,
-			uint(endpoint.GetRequestsPerMinute()),
-		)
+		newTotal := total + endpoint.GetRequestsPerMinute()
+		randomizedEndpoints[i] = randomizedEndpoint{
+			start:    total,
+			end:      newTotal,
+			endpoint: endpoint,
+		}
+
+		total = newTotal
 	}
 
-	chooser, _ := weightedrand.NewChooser(choices...)
 	return &EndpointRandomizer{
-		chooser: chooser,
+		endpoints: randomizedEndpoints,
+		total:     total,
+		rand:      rand.New(rand.NewSource(time.Now().Unix())),
 	}
 }
 
 func (r *EndpointRandomizer) PickRandomEndpoint() Endpoint {
-	return r.chooser.Pick().(Endpoint)
+	pickedRange := r.rand.Int31n(r.total) + 1
+
+	for _, endpoint := range r.endpoints {
+		if endpoint.start < pickedRange && pickedRange < endpoint.end {
+			return endpoint.endpoint
+		}
+	}
+
+	return nil
 }
