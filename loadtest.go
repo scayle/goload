@@ -146,13 +146,13 @@ loop:
 
 				startTime := time.Now()
 				err := endpoint.Execute(ctx)
-				endTime := time.Now()
+				duration := time.Since(startTime)
 
 				loadtest.Results.SaveEndpointResult(
 					endpoint,
 					EndpointResult{
 						Failed:   err != nil,
-						Duration: endTime.Sub(startTime),
+						Duration: duration,
 					},
 				)
 			}()

@@ -58,10 +58,6 @@ func (ui *UI) ReportResults(results *LoadTestResults) {
 	addFailedRequestsColumn(rows, results)
 	addAverageResponseTimeColumn(rows, results)
 
-	addPercentileResponseTimeColumn(rows, results, 0.90)
-	addPercentileResponseTimeColumn(rows, results, 0.95)
-	addPercentileResponseTimeColumn(rows, results, 0.99)
-
 	for _, row := range rows {
 		fmt.Fprintln(
 			ui.output,
@@ -163,40 +159,6 @@ func addAverageResponseTimeColumn(columns [][]string, results *LoadTestResults) 
 		items = append(
 			items,
 			fmt.Sprintf("avg=%.2fms", endpoint.GetAverageDuration()),
-		)
-	}
-
-	maxLen := 0
-	for _, item := range items {
-		if maxLen < len(item) {
-			maxLen = len(item)
-		}
-	}
-
-	if maxLen == 0 {
-		return
-	}
-
-	for index, item := range items {
-		columns[index] = append(
-			columns[index],
-			fmt.Sprintf("%s%s", item, strings.Repeat(" ", maxLen-len(item))),
-		)
-	}
-}
-
-func addPercentileResponseTimeColumn(columns [][]string, results *LoadTestResults, p float64) {
-	items := []string{}
-	for _, endpoint := range results.Iter() {
-		percentile := endpoint.GetPercentileDuration(p)
-		if math.IsNaN(percentile) {
-			items = append(items, "")
-			continue
-		}
-
-		items = append(
-			items,
-			fmt.Sprintf("p(%.0f)=%.2fms", p*100, percentile),
 		)
 	}
 

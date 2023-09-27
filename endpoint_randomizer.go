@@ -19,15 +19,15 @@ type EndpointRandomizer struct {
 func NewEndpointRandomizer(endpoints []Endpoint) *EndpointRandomizer {
 	randomizedEndpoints := make([]randomizedEndpoint, len(endpoints))
 	var total int32
+
 	for i, endpoint := range endpoints {
-		newTotal := total + endpoint.GetRequestsPerMinute()
 		randomizedEndpoints[i] = randomizedEndpoint{
-			start:    total,
-			end:      newTotal,
+			start:    total + 1,
+			end:      total + endpoint.GetRequestsPerMinute(),
 			endpoint: endpoint,
 		}
 
-		total = newTotal
+		total += endpoint.GetRequestsPerMinute()
 	}
 
 	return &EndpointRandomizer{
@@ -41,7 +41,7 @@ func (r *EndpointRandomizer) PickRandomEndpoint() Endpoint {
 	pickedRange := r.rand.Int31n(r.total) + 1
 
 	for _, endpoint := range r.endpoints {
-		if endpoint.start < pickedRange && pickedRange < endpoint.end {
+		if endpoint.start <= pickedRange && pickedRange <= endpoint.end {
 			return endpoint.endpoint
 		}
 	}
