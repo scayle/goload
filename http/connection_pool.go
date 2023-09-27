@@ -3,7 +3,6 @@ package goload_http
 import (
 	"math/rand"
 	"net/http"
-	"time"
 )
 
 type ClientPool struct {
@@ -13,11 +12,26 @@ type ClientPool struct {
 
 type HTTPTransportOption = func(request *http.Request)
 
+// WithUserAgent sets the user agent on each of the request for the client pool.
 func WithUserAgent(userAgent string) HTTPTransportOption {
 	return func(request *http.Request) {
 		if request.Header.Get("user-agent") == "" {
 			request.Header.Set("user-agent", userAgent)
 		}
+	}
+}
+
+// WithHeader sets a custom header on each request.
+func WithHeader(key string, value string) HTTPTransportOption {
+	return func(request *http.Request) {
+		request.Header.Add(key, value)
+	}
+}
+
+// WithBasicAuth sets basic auth credentials on each request.
+func WithBasicAuth(username string, password string) HTTPTransportOption {
+	return func(request *http.Request) {
+		request.SetBasicAuth(username, password)
 	}
 }
 
@@ -35,27 +49,14 @@ func (transport *transport) RoundTrip(request *http.Request) (*http.Response, er
 	return transport.innerTransport.RoundTrip(request)
 }
 
-func NewClientPool(
-	count int,
-	options ...HTTPTransportOption,
-) *ClientPool {
-	clients := make([]*http.Client, count)
-
-	for i := 0; i < count; i++ {
-		clients[i] = &http.Client{
-			Transport: &transport{
-				options:        options,
-				innerTransport: http.DefaultTransport,
-			},
-		}
+// NewHTTPClient creates a new http client for loadtesting.
+//
+// It allows to specify various request options which will be applied to all requests.
+func NewHTTPClient(options ...HTTPTransportOption) *http.Client {
+	return &http.Client{
+		Transport: &transport{
+			options:        options,
+			innerTransport: http.DefaultTransport,
+		},
 	}
-
-	return &ClientPool{
-		clients: clients,
-		rand:    rand.New(rand.NewSource(time.Now().Unix())),
-	}
-}
-
-func (pool *ClientPool) Client() *http.Client {
-	return pool.clients[pool.rand.Intn(len(pool.clients))]
 }
