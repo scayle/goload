@@ -6,17 +6,14 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/HenriBeck/goload"
 )
 
-type Endpoint struct {
-	options *EndpointOptions
-}
-
 type EndpointOptions struct {
-	name              string
-	requestsPerMinute int32
+	name         string
+	endpointOpts []goload.EndpointOption
 
 	client *http.Client
 
@@ -27,10 +24,22 @@ type EndpointOptions struct {
 	validateResponse func(response *http.Response) error
 }
 
-type HTTPEndpointConfig func(options *EndpointOptions)
+func (options *EndpointOptions) Name() string {
+	// If an explicit endpoint name is provided we have dynamic URLs per request
+	if options.name != "" {
+		return options.name
+	}
+
+	// Otherwise this will resolve to a static URL which we will use as the endpoints name
+	uri := options.getUrl()
+
+	return fmt.Sprintf("%s %s", options.method, uri.String())
+}
+
+type HTTPEndpointOption func(options *EndpointOptions)
 
 // WithHTTPClient configures a static http client to be used for the loadtest endpoint.
-func WithHTTPClient(client *http.Client) HTTPEndpointConfig {
+func WithHTTPClient(client *http.Client) HTTPEndpointOption {
 	return func(options *EndpointOptions) {
 		options.client = client
 	}
@@ -39,21 +48,28 @@ func WithHTTPClient(client *http.Client) HTTPEndpointConfig {
 // WithHTTPMethod sets the HTTP method used for the requests.
 //
 // By default, the `Endpoint` will use an `GET` request.
-func WithHTTPMethod(method string) HTTPEndpointConfig {
+func WithHTTPMethod(method string) HTTPEndpointOption {
 	return func(options *EndpointOptions) {
 		options.method = method
 	}
 }
 
 // WithRequestsPerMinute configures the targeted requests per minute compared to other endpoints.
-func WithRequestsPerMinute(rpm int32) HTTPEndpointConfig {
+func WithRequestsPerMinute(rpm int32) HTTPEndpointOption {
 	return func(options *EndpointOptions) {
-		options.requestsPerMinute = rpm
+		options.endpointOpts = append(options.endpointOpts, goload.WithRequestsPerMinute(rpm))
+	}
+}
+
+// WithTimeout configures a specific timeout duration for the endpoint overriding the global config.
+func WithTimeout(timeout time.Duration) HTTPEndpointOption {
+	return func(options *EndpointOptions) {
+		options.endpointOpts = append(options.endpointOpts, goload.WithTimeout(timeout))
 	}
 }
 
 // WithURL allows setting a static URL for the loadtest endpoint.
-func WithURL(uri url.URL) HTTPEndpointConfig {
+func WithURL(uri url.URL) HTTPEndpointOption {
 	return func(options *EndpointOptions) {
 		options.getUrl = func() url.URL {
 			return uri
@@ -64,7 +80,7 @@ func WithURL(uri url.URL) HTTPEndpointConfig {
 // WithURLFunc allows for a dynamic creation of the URL per request made in the loadtest.
 //
 // An explicit endpoint name needs to be provided here for reporting purposes as an identifier.
-func WithURLFunc(endpointName string, getUrl func() url.URL) HTTPEndpointConfig {
+func WithURLFunc(endpointName string, getUrl func() url.URL) HTTPEndpointOption {
 	return func(options *EndpointOptions) {
 		options.name = endpointName
 		options.getUrl = getUrl
@@ -72,7 +88,7 @@ func WithURLFunc(endpointName string, getUrl func() url.URL) HTTPEndpointConfig 
 }
 
 // WithURLString allows setting a static string URL for the loadtest endpoint.
-func WithURLString(uri string) HTTPEndpointConfig {
+func WithURLString(uri string) HTTPEndpointOption {
 	parsedUri, err := url.Parse(uri)
 	if err != nil {
 		panic(err)
@@ -88,7 +104,7 @@ func WithURLString(uri string) HTTPEndpointConfig {
 // WithValidateResponse allows to configure a custom check if the request should be counted as successful or not.
 //
 // By default, the request is successful if it returns a 2xx status code.
-func WithValidateResponse(validate func(res *http.Response) error) HTTPEndpointConfig {
+func WithValidateResponse(validate func(res *http.Response) error) HTTPEndpointOption {
 	return func(options *EndpointOptions) {
 		options.validateResponse = validate
 	}
@@ -97,7 +113,7 @@ func WithValidateResponse(validate func(res *http.Response) error) HTTPEndpointC
 // NewEndpoint creates a new HTTP based loadtest endpoint.
 //
 // To configure it you can use the functional options.
-func NewEndpoint(configs ...HTTPEndpointConfig) goload.Endpoint {
+func NewEndpoint(opts ...HTTPEndpointOption) goload.Endpoint {
 	options := &EndpointOptions{
 		method: http.MethodGet,
 		body:   http.NoBody,
@@ -110,54 +126,29 @@ func NewEndpoint(configs ...HTTPEndpointConfig) goload.Endpoint {
 			return nil
 		},
 	}
-	for _, config := range configs {
+	for _, config := range opts {
 		config(options)
 	}
 
-	return &Endpoint{
-		options: options,
-	}
-}
+	return goload.NewEndpoint(
+		options.Name(),
+		func(ctx context.Context) error {
+			uri := options.getUrl()
 
-func (endpoint *Endpoint) GetRequestsPerMinute() int32 {
-	return endpoint.options.requestsPerMinute
-}
+			req, err := http.NewRequestWithContext(ctx, options.method, uri.String(), options.body)
+			if err != nil {
+				return err
+			}
 
-func (endpoint *Endpoint) Name() string {
-	// If an explicit endpoint name is provided we have dynamic URLs per request
-	if endpoint.options.name != "" {
-		return endpoint.options.name
-	}
+			res, err := options.client.Do(req)
+			if err != nil {
+				return err
+			}
 
-	// Otherwise this will resolve to a static URL which we will use as the endpoints name
-	uri := endpoint.options.getUrl()
+			defer res.Body.Close()
 
-	return fmt.Sprintf(
-		"%s %s",
-		endpoint.options.method,
-		uri.String(),
+			return options.validateResponse(res)
+		},
+		options.endpointOpts...,
 	)
-}
-
-func (endpoint *Endpoint) Execute(ctx context.Context) error {
-	uri := endpoint.options.getUrl()
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		endpoint.options.method,
-		uri.String(),
-		endpoint.options.body,
-	)
-	if err != nil {
-		return err
-	}
-
-	res, err := endpoint.options.client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer res.Body.Close()
-
-	return endpoint.options.validateResponse(res)
 }

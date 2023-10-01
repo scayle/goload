@@ -114,9 +114,13 @@ func initializeTicker(options *LoadTestOptions, ui *UI) *time.Ticker {
 }
 
 func (loadtest *LoadTest) Run() {
-	endpointRandomizer := NewEndpointRandomizer(
+	endpointRandomizer, err := NewEndpointRandomizer(
 		loadtest.Options.Endpoints,
+		loadtest.Options.RequestPerMinutePerEndpoint,
 	)
+	if err != nil {
+		panic(err)
+	}
 	g := new(sync.WaitGroup)
 
 loop:
@@ -137,8 +141,16 @@ loop:
 					ctx = fn(ctx)
 				}
 
-				if loadtest.Options.DefaultEndpointTimeout.Nanoseconds() > 0 {
-					_ctx, cancel := context.WithTimeout(ctx, loadtest.Options.DefaultEndpointTimeout)
+				var timeout time.Duration
+				switch {
+				case endpoint.Options().Timeout.Nanoseconds() > 0:
+					timeout = endpoint.Options().Timeout
+				case loadtest.Options.DefaultEndpointTimeout.Nanoseconds() > 0:
+					timeout = loadtest.Options.DefaultEndpointTimeout
+				}
+
+				if timeout.Nanoseconds() > 0 {
+					_ctx, cancel := context.WithTimeout(ctx, timeout)
 					defer cancel()
 
 					ctx = _ctx

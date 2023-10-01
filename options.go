@@ -7,6 +7,10 @@ import (
 
 type LoadTestOptions struct {
 	Endpoints []Endpoint
+	// A config which allows to set the requests per minute for each registered endpoint at a central place
+	//
+	// This overrides any local endpoint setting where a default RPM value was set
+	RequestPerMinutePerEndpoint map[string]int32
 
 	DefaultEndpointTimeout time.Duration
 
@@ -19,9 +23,15 @@ type LoadTestOptions struct {
 
 type LoadTestConfig func(options *LoadTestOptions)
 
-func WithEndpoint(endpoint Endpoint) LoadTestConfig {
+func WithEndpoints(endpoints ...Endpoint) LoadTestConfig {
 	return func(options *LoadTestOptions) {
-		options.Endpoints = append(options.Endpoints, endpoint)
+		options.Endpoints = append(options.Endpoints, endpoints...)
+	}
+}
+
+func WithRequestsPerMinuteForEndpoints(data map[string]int32) LoadTestConfig {
+	return func(options *LoadTestOptions) {
+		options.RequestPerMinutePerEndpoint = data
 	}
 }
 
@@ -43,18 +53,16 @@ func WithDuration(loadTestDuration time.Duration) LoadTestConfig {
 	}
 }
 
-func WithStaticRPM(rpm int32) LoadTestConfig {
-	strategy := NewStaticRPMStrategy(rpm)
-
+func WithRPMStrategy(strategy RPMStrategy) LoadTestConfig {
 	return func(options *LoadTestOptions) {
 		options.RPMStrategy = strategy
 	}
 }
 
-func WithRampUpRPM(steps []Step) LoadTestConfig {
-	strategy := NewRampUpRPMStrategy(steps)
+func WithStaticRPM(rpm int32) LoadTestConfig {
+	return WithRPMStrategy(NewStaticRPMStrategy(rpm))
+}
 
-	return func(options *LoadTestOptions) {
-		options.RPMStrategy = strategy
-	}
+func WithRampUpRPM(steps []Step) LoadTestConfig {
+	return WithRPMStrategy(NewRampUpRPMStrategy(steps))
 }
