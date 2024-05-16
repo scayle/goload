@@ -1,19 +1,17 @@
 package goload_http
 
-import (
-	"math/rand"
-	"net/http"
-)
+import "net/http"
 
-type ClientPool struct {
-	clients []*http.Client
-	rand    *rand.Rand
+var defaultClient = http.DefaultClient
+
+func SetHTTPClient(client *http.Client) {
+	defaultClient = client
 }
 
 type HTTPTransportOption = func(request *http.Request)
 
-// WithUserAgent sets the user agent on each of the request for the client pool.
-func WithUserAgent(userAgent string) HTTPTransportOption {
+// WithClientUserAgent sets the user agent on each of the request
+func WithClientUserAgent(userAgent string) HTTPTransportOption {
 	return func(request *http.Request) {
 		if request.Header.Get("user-agent") == "" {
 			request.Header.Set("user-agent", userAgent)
@@ -21,15 +19,15 @@ func WithUserAgent(userAgent string) HTTPTransportOption {
 	}
 }
 
-// WithHeader sets a custom header on each request.
-func WithHeader(key string, value string) HTTPTransportOption {
+// WithClientHeader sets a custom header on each request.
+func WithClientHeader(key string, value string) HTTPTransportOption {
 	return func(request *http.Request) {
 		request.Header.Add(key, value)
 	}
 }
 
-// WithBasicAuth sets basic auth credentials on each request.
-func WithBasicAuth(username string, password string) HTTPTransportOption {
+// WithClientBasicAuth sets basic auth credentials on each request.
+func WithClientBasicAuth(username string, password string) HTTPTransportOption {
 	return func(request *http.Request) {
 		request.SetBasicAuth(username, password)
 	}
@@ -49,10 +47,10 @@ func (transport *transport) RoundTrip(request *http.Request) (*http.Response, er
 	return transport.innerTransport.RoundTrip(request)
 }
 
-// NewHTTPClient creates a new http client for loadtesting.
+// NewClient creates a new http client for loadtesting with custom options.
 //
 // It allows to specify various request options which will be applied to all requests.
-func NewHTTPClient(options ...HTTPTransportOption) *http.Client {
+func NewClient(options ...HTTPTransportOption) *http.Client {
 	return &http.Client{
 		Transport: &transport{
 			options:        options,

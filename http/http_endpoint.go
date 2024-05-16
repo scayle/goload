@@ -20,6 +20,7 @@ type EndpointOptions struct {
 	getUrl func() url.URL
 	method string
 	body   io.Reader
+	header http.Header
 
 	validateResponse func(response *http.Response) error
 }
@@ -38,7 +39,7 @@ func (options *EndpointOptions) Name() string {
 
 type HTTPEndpointOption func(options *EndpointOptions)
 
-// WithHTTPClient configures a static http client to be used for the loadtest endpoint.
+// WithHTTPClient configures a static http defaultClient to be used for the loadtest endpoint.
 func WithHTTPClient(client *http.Client) HTTPEndpointOption {
 	return func(options *EndpointOptions) {
 		options.client = client
@@ -51,6 +52,12 @@ func WithHTTPClient(client *http.Client) HTTPEndpointOption {
 func WithHTTPMethod(method string) HTTPEndpointOption {
 	return func(options *EndpointOptions) {
 		options.method = method
+	}
+}
+
+func WithHeader(key string, value string) HTTPEndpointOption {
+	return func(options *EndpointOptions) {
+		options.header.Add(key, value)
 	}
 }
 
@@ -117,7 +124,7 @@ func NewEndpoint(opts ...HTTPEndpointOption) goload.Endpoint {
 	options := &EndpointOptions{
 		method: http.MethodGet,
 		body:   http.NoBody,
-		client: http.DefaultClient,
+		client: defaultClient,
 		validateResponse: func(res *http.Response) error {
 			if res.StatusCode < 200 || res.StatusCode > 299 {
 				return fmt.Errorf("received non 200 status code from the server")
@@ -139,6 +146,8 @@ func NewEndpoint(opts ...HTTPEndpointOption) goload.Endpoint {
 			if err != nil {
 				return err
 			}
+
+			req.Header = options.header
 
 			res, err := options.client.Do(req)
 			if err != nil {
