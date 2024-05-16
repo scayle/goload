@@ -117,6 +117,13 @@ func WithValidateResponse(validate func(res *http.Response) error) HTTPEndpointO
 	}
 }
 
+// WithName allows manually setting the endpoint name
+func WithName(name string) HTTPEndpointOption {
+	return func(options *EndpointOptions) {
+		options.name = name
+	}
+}
+
 // NewEndpoint creates a new HTTP based loadtest endpoint.
 //
 // To configure it you can use the functional options.
