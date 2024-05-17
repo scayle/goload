@@ -131,6 +131,7 @@ func NewEndpoint(opts ...HTTPEndpointOption) goload.Endpoint {
 	options := &EndpointOptions{
 		method: http.MethodGet,
 		body:   http.NoBody,
+		header: make(http.Header),
 		client: defaultClient,
 		validateResponse: func(res *http.Response) error {
 			if res.StatusCode < 200 || res.StatusCode > 299 {
