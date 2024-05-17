@@ -132,6 +132,7 @@ func NewEndpoint(opts ...HTTPEndpointOption) goload.Endpoint {
 		method: http.MethodGet,
 		body:   http.NoBody,
 		client: defaultClient,
+		header: make(http.Header),
 		validateResponse: func(res *http.Response) error {
 			if res.StatusCode < 200 || res.StatusCode > 299 {
 				return fmt.Errorf("received non 200 status code from the server")
