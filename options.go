@@ -1,68 +1,60 @@
 package goload
 
 import (
-	"context"
+	"github.com/HenriBeck/goload/pacer"
 	"time"
 )
 
-type LoadTestOptions struct {
-	Endpoints []Endpoint
-	// A config which allows to set the requests per minute for each registered endpoint at a central place
-	//
-	// This overrides any local endpoint setting where a default RPM value was set
-	RequestPerMinutePerEndpoint map[string]int32
-
-	DefaultEndpointTimeout time.Duration
-
-	LoadTestDuration time.Duration
-
-	RPMStrategy RPMStrategy
-
-	ContextModifiers []func(ctx context.Context) context.Context
-}
-
-type LoadTestConfig func(options *LoadTestOptions)
-
-func WithEndpoints(endpoints ...Endpoint) LoadTestConfig {
+func WithDuration(loadTestDuration time.Duration) LoadTestOption {
 	return func(options *LoadTestOptions) {
-		options.Endpoints = append(options.Endpoints, endpoints...)
+		options.duration = loadTestDuration
 	}
 }
 
-func WithRequestsPerMinuteForEndpoints(data map[string]int32) LoadTestConfig {
+func WithExecutors(executors ...Executor) LoadTestOption {
 	return func(options *LoadTestOptions) {
-		options.RequestPerMinutePerEndpoint = data
+		options.executors = append(options.executors, executors...)
 	}
 }
 
-func WithContextModifier(fn func(ctx context.Context) context.Context) LoadTestConfig {
+func WithLinearRampUpPacer(startRate, endRate pacer.Rate, rampUpDuration time.Duration) LoadTestOption {
 	return func(options *LoadTestOptions) {
-		options.ContextModifiers = append(options.ContextModifiers, fn)
+		options.pacer = pacer.NewLinearRampUpPacer(startRate, endRate, rampUpDuration)
 	}
 }
 
-func WithDefaultEndpointTimeout(timeout time.Duration) LoadTestConfig {
+func WithConstantPacer(rate pacer.Rate) LoadTestOption {
 	return func(options *LoadTestOptions) {
-		options.DefaultEndpointTimeout = timeout
+		options.pacer = pacer.NewConstantPacer(rate)
 	}
 }
 
-func WithDuration(loadTestDuration time.Duration) LoadTestConfig {
+func WithReportInterval(reportInterval time.Duration) LoadTestOption {
 	return func(options *LoadTestOptions) {
-		options.LoadTestDuration = loadTestDuration
+		options.reportInterval = reportInterval
 	}
 }
 
-func WithRPMStrategy(strategy RPMStrategy) LoadTestConfig {
+func WithInitialWorkerCount(count int) LoadTestOption {
 	return func(options *LoadTestOptions) {
-		options.RPMStrategy = strategy
+		options.initialWorkers = count
 	}
 }
 
-func WithStaticRPM(rpm int32) LoadTestConfig {
-	return WithRPMStrategy(NewStaticRPMStrategy(rpm))
+func WithMaxWorkerCount(count int) LoadTestOption {
+	return func(options *LoadTestOptions) {
+		options.maxWorkers = count
+	}
 }
 
-func WithRampUpRPM(steps []Step) LoadTestConfig {
-	return WithRPMStrategy(NewRampUpRPMStrategy(steps))
+func WithAdditionalResultHandler(handler resultHandler) LoadTestOption {
+	return func(options *LoadTestOptions) {
+		options.resultHandlers = append(options.resultHandlers, handler)
+	}
+}
+
+func WithWeightOverrides(overrides map[string]int) LoadTestOption {
+	return func(options *LoadTestOptions) {
+		options.weightOverrides = overrides
+	}
 }
