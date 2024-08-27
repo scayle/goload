@@ -1,7 +1,6 @@
-package goload_http
+package url_builder
 
 import (
-	"github.com/HenriBeck/goload/http/query_param"
 	"github.com/HenriBeck/goload/utils/random"
 	"net/url"
 	"strings"
@@ -10,7 +9,7 @@ import (
 type URLBuilder struct {
 	rawURL                  string
 	urlParameterRandomizers []URLParameterRandomizer
-	queryParams             []query_param.Builder
+	queryParams             []QueryParamBuilder
 }
 
 type URLBuilderOption func(*URLBuilder)
@@ -29,7 +28,7 @@ func NewURLBuilder(opts []URLBuilderOption) *URLBuilder {
 	return &urlBuilder
 }
 
-func (builder *URLBuilder) Build() *url.URL {
+func (builder *URLBuilder) Build(basePath *string) *url.URL {
 	q := url.Values{}
 
 	for _, param := range builder.queryParams {
@@ -43,6 +42,14 @@ func (builder *URLBuilder) Build() *url.URL {
 	query := q.Encode()
 
 	rawURL := builder.rawURL
+	if basePath != nil {
+		var err error
+		rawURL, err = url.JoinPath(*basePath, builder.rawURL)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	for _, u := range builder.urlParameterRandomizers {
 		v := u.GetValue()
 		rawURL = strings.Replace(rawURL, u.key, v, 1)

@@ -2,7 +2,8 @@ package goload_http
 
 import (
 	"errors"
-	"github.com/HenriBeck/goload/http/query_param"
+	"github.com/HenriBeck/goload"
+	"github.com/HenriBeck/goload/http/url_builder"
 	"io"
 	"net/http"
 	"net/url"
@@ -65,11 +66,18 @@ func WithClient(client http.Client) EndpointOption {
 
 func WithURL(rawURL string) EndpointOption {
 	return func(ep *endpoint) {
-		u, err := url.Parse(rawURL)
-		if err != nil {
-			panic(err)
-		}
 		ep.urlFunc = func() *url.URL {
+			if basePath != nil {
+				var err error
+				rawURL, err = url.JoinPath(*basePath, rawURL)
+				if err != nil {
+					panic(err)
+				}
+			}
+			u, err := url.Parse(rawURL)
+			if err != nil {
+				panic(err)
+			}
 			return u
 		}
 	}
@@ -121,21 +129,17 @@ func WithValidateResponse(validationFunc func(response *http.Response) error) En
 	}
 }
 
-func WithURLBuilder(opts ...URLBuilderOption) EndpointOption {
-	builder := NewURLBuilder(opts)
+func WithURLBuilder(opts ...url_builder.URLBuilderOption) EndpointOption {
+	builder := url_builder.NewURLBuilder(opts)
 	return func(ep *endpoint) {
-		ep.urlFunc = builder.Build
+		ep.urlFunc = func() *url.URL {
+			return builder.Build(basePath)
+		}
 	}
 }
 
-func WithRawURL(rawURL string) URLBuilderOption {
-	return func(builder *URLBuilder) {
-		builder.rawURL = rawURL
-	}
-}
-
-func WithQueryParams(queryParams ...query_param.Builder) URLBuilderOption {
-	return func(builder *URLBuilder) {
-		builder.queryParams = append(builder.queryParams, queryParams...)
+func WithBasePath(path string) goload.LoadTestOption {
+	return func(_ *goload.LoadTestOptions) {
+		basePath = &path
 	}
 }

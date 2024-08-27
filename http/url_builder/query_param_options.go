@@ -1,4 +1,4 @@
-package query_param
+package url_builder
 
 import (
 	"github.com/HenriBeck/goload/utils/random"
@@ -6,7 +6,34 @@ import (
 	"strconv"
 )
 
-func WithValue(value string) Opt {
+func WithParamName(name string) QueryParameterOption {
+	return func(param *QueryParameter) {
+		param.Name = func() string {
+			return name
+		}
+	}
+}
+
+func WithParamUsagePercentage(pct int) QueryParameterOption {
+	if pct > 100 || pct < 0 {
+		panic("WithParamUsagePercentage value must be between 0 and 100")
+	}
+	r, err := weightedrand.NewChooser(
+		weightedrand.NewChoice(true, pct),
+		weightedrand.NewChoice(true, 100-pct),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	return func(param *QueryParameter) {
+		param.ShouldBeUsed = func() bool {
+			return r.Pick()
+		}
+	}
+}
+
+func WithParamValue(value string) QueryParameterOption {
 	return func(param *QueryParameter) {
 		param.Value = func() []string {
 			return []string{value}
@@ -14,7 +41,7 @@ func WithValue(value string) Opt {
 	}
 }
 
-func WithSampledValues(min int64, max int64, opts []string) Opt {
+func WithSampledParamValues(min int64, max int64, opts []string) QueryParameterOption {
 	sampler := random.NewSampler(opts)
 	return func(param *QueryParameter) {
 		n := random.Number(min, max)
@@ -29,9 +56,9 @@ type WeightedValueOpt struct {
 	Weight int
 }
 
-func WithWeightedValue(opts ...WeightedValueOpt) Opt {
+func WithWeightedParamValue(opts ...WeightedValueOpt) QueryParameterOption {
 	if len(opts) == 0 {
-		panic("WithWeightedValue opts can't be empty")
+		panic("WithWeightedParamValue opts can't be empty")
 	}
 	values := make([]weightedrand.Choice[string, int], 0, len(opts))
 	for _, opt := range opts {
@@ -50,7 +77,7 @@ func WithWeightedValue(opts ...WeightedValueOpt) Opt {
 	}
 }
 
-func WithOneOfValue(values []string) Opt {
+func WithOneOfParamValue(values []string) QueryParameterOption {
 	if len(values) == 0 {
 		panic("one off values needs at least one option")
 	}
@@ -62,7 +89,7 @@ func WithOneOfValue(values []string) Opt {
 	}
 }
 
-func WithRandomNumberValue(min int64, max int64) Opt {
+func WithRandomNumberParamValue(min int64, max int64) QueryParameterOption {
 	return func(param *QueryParameter) {
 		param.Value = func() []string {
 			number := random.Number(min, max)

@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var basePath *string
+
 type EndpointOption func(ep *endpoint)
 
 func NewEndpoint(opts ...EndpointOption) goload.Executor {
@@ -96,7 +98,7 @@ func (e *endpoint) Options() *goload.ExecutorOptions {
 }
 
 func Status2xxResponseValidation(response *http.Response) error {
-	if response.StatusCode >= 200 && response.StatusCode < 300 {
+	if response.StatusCode < 200 && response.StatusCode >= 300 {
 		return fmt.Errorf("non 2xx status code: %d", response.StatusCode)
 	}
 	return nil

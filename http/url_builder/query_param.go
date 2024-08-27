@@ -1,4 +1,4 @@
-package query_param
+package url_builder
 
 import (
 	"github.com/HenriBeck/goload/utils/random"
@@ -6,7 +6,7 @@ import (
 	"net/url"
 )
 
-type Builder interface {
+type QueryParamBuilder interface {
 	Build() url.Values
 }
 
@@ -20,9 +20,9 @@ type QueryParameter struct {
 	Value        ValuesFn
 }
 
-type Opt func(param *QueryParameter)
+type QueryParameterOption func(param *QueryParameter)
 
-func New(opts ...Opt) *QueryParameter {
+func NewQueryParameter(opts ...QueryParameterOption) *QueryParameter {
 	param := &QueryParameter{
 		//set defaults
 		ShouldBeUsed: UseAlways(),
@@ -31,7 +31,7 @@ func New(opts ...Opt) *QueryParameter {
 		opt(param)
 	}
 	if param.Name == nil || param.Value == nil {
-		panic("query_param.New must contain opts for name and value")
+		panic("query_param.NewQueryParameter must contain opts for name and value")
 	}
 	return param
 }
@@ -53,21 +53,29 @@ func UseAlways() ShouldBeUsedFn {
 	}
 }
 
-func WithName(name string) Opt {
-	return func(param *QueryParameter) {
-		param.Name = func() string {
-			return name
-		}
-	}
+type oneOfParam struct {
+	params []QueryParamBuilder
 }
 
-type pctParam struct {
+func WithOneOfParam(params ...QueryParamBuilder) QueryParamBuilder {
+	if len(params) == 0 {
+		panic("NewOneOfParam must contain at least one parameter")
+	}
+	return &oneOfParam{params: params}
+}
+
+func (p *oneOfParam) Build() url.Values {
+	index := random.Number(0, int64(len(p.params)-1))
+	return p.params[index].Build()
+}
+
+type chanceParam struct {
 	chance int
-	param  Builder
+	param  QueryParamBuilder
 	r      *weightedrand.Chooser[bool, int]
 }
 
-func NewPctParam(chance int, param Builder) Builder {
+func NewParamWithUsageChange(chance int, param QueryParamBuilder) QueryParamBuilder {
 	if chance > 100 || chance < 0 {
 		panic("chance value must be between 0 and 100")
 	}
@@ -79,28 +87,12 @@ func NewPctParam(chance int, param Builder) Builder {
 		panic(err)
 	}
 
-	return &pctParam{chance: chance, param: param, r: r}
+	return &chanceParam{chance: chance, param: param, r: r}
 }
 
-func (p *pctParam) Build() url.Values {
+func (p *chanceParam) Build() url.Values {
 	if p.r.Pick() {
 		return p.param.Build()
 	}
 	return url.Values{}
-}
-
-type oneOfParam struct {
-	params []Builder
-}
-
-func (o *oneOfParam) Build() url.Values {
-	index := random.Number(0, int64(len(o.params)-1))
-	return o.params[index].Build()
-}
-
-func NewOneOfParam(params ...Builder) Builder {
-	if len(params) == 0 {
-		panic("params cant be empty")
-	}
-	return &oneOfParam{params: params}
 }
