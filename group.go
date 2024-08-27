@@ -3,6 +3,7 @@ package goload
 import (
 	"context"
 	"github.com/mroth/weightedrand/v2"
+	"github.com/rs/zerolog/log"
 	"time"
 )
 
@@ -16,7 +17,7 @@ type executorGroup struct {
 // TODO: add options
 func NewGroup(name string, weight int, executors []Executor) Executor {
 	if len(executors) == 0 {
-		panic("group can't be empty")
+		log.Fatal().Msg("group can't be empty")
 	}
 	choises := make([]weightedrand.Choice[Executor, int], 0, len(executors))
 	for _, exec := range executors {
@@ -26,7 +27,7 @@ func NewGroup(name string, weight int, executors []Executor) Executor {
 		choises...,
 	)
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("can't create chooser")
 	}
 
 	return &executorGroup{

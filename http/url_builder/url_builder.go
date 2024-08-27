@@ -1,7 +1,9 @@
 package url_builder
 
 import (
+	"fmt"
 	"github.com/HenriBeck/goload/utils/random"
+	"github.com/rs/zerolog/log"
 	"net/url"
 	"strings"
 )
@@ -22,13 +24,13 @@ func NewURLBuilder(opts []URLBuilderOption) *URLBuilder {
 	}
 
 	if urlBuilder.rawURL == "" {
-		panic("urlBuilder url must not be empty")
+		log.Fatal().Msg("NewURLBuilder must include WithRawURL option")
 	}
 
 	return &urlBuilder
 }
 
-func (builder *URLBuilder) Build(basePath *string) *url.URL {
+func (builder *URLBuilder) Build(basePath *string) (*url.URL, error) {
 	q := url.Values{}
 
 	for _, param := range builder.queryParams {
@@ -46,23 +48,26 @@ func (builder *URLBuilder) Build(basePath *string) *url.URL {
 		var err error
 		rawURL, err = url.JoinPath(*basePath, builder.rawURL)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
 
 	for _, u := range builder.urlParameterRandomizers {
-		v := u.GetValue()
+		v, err := u.GetValue()
+		if err != nil {
+			return nil, err
+		}
 		rawURL = strings.Replace(rawURL, u.key, v, 1)
 	}
 
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	u.RawQuery = query
 
-	return u
+	return u, nil
 }
 
 type URLParameterRandomizer struct {
@@ -70,10 +75,10 @@ type URLParameterRandomizer struct {
 	values []string
 }
 
-func (u *URLParameterRandomizer) GetValue() string {
+func (u *URLParameterRandomizer) GetValue() (string, error) {
 	if len(u.values) == 0 {
-		panic("Values cant be empty")
+		return "", fmt.Errorf("empty values for URLParameterRandomizer")
 	}
 	index := random.Number(0, int64(len(u.values)-1))
-	return u.values[index]
+	return u.values[index], nil
 }

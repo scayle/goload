@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/HenriBeck/goload/pacer"
 	ctx_utils "github.com/HenriBeck/goload/utils/ctx"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"math"
 	"os"
 	"time"
@@ -39,6 +41,8 @@ type LoadTestOptions struct {
 type LoadTestOption func(*LoadTestOptions)
 
 func RunLoadTest(opts ...LoadTestOption) {
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+
 	// set default options
 	options, err := renderAndValidateOptions(opts)
 	if err != nil {

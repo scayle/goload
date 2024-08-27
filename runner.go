@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/HenriBeck/goload/pacer"
 	"github.com/mroth/weightedrand/v2"
+	"github.com/rs/zerolog/log"
 	"sync"
 	"time"
 )
@@ -113,7 +114,7 @@ func (r *Runner) getExecutorChooser(exs []Executor) *weightedrand.Chooser[Execut
 	}
 	chooser, err := weightedrand.NewChooser(choices...)
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("can't create chooser")
 	}
 	return chooser
 }

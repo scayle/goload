@@ -3,6 +3,7 @@ package url_builder
 import (
 	"github.com/HenriBeck/goload/utils/random"
 	"github.com/mroth/weightedrand/v2"
+	"github.com/rs/zerolog/log"
 	"net/url"
 )
 
@@ -31,7 +32,7 @@ func NewQueryParameter(opts ...QueryParameterOption) *QueryParameter {
 		opt(param)
 	}
 	if param.Name == nil || param.Value == nil {
-		panic("query_param.NewQueryParameter must contain opts for name and value")
+		log.Fatal().Msg("NewQueryParameter must contain opts for name and value")
 	}
 	return param
 }
@@ -59,7 +60,7 @@ type oneOfParam struct {
 
 func WithOneOfParam(params ...QueryParamBuilder) QueryParamBuilder {
 	if len(params) == 0 {
-		panic("NewOneOfParam must contain at least one parameter")
+		log.Fatal().Msg("WithOneOfParam must contain at least one parameter")
 	}
 	return &oneOfParam{params: params}
 }
@@ -77,14 +78,14 @@ type chanceParam struct {
 
 func NewParamWithUsageChange(chance int, param QueryParamBuilder) QueryParamBuilder {
 	if chance > 100 || chance < 0 {
-		panic("chance value must be between 0 and 100")
+		log.Fatal().Msg("NewParamWithUsageChange chance value must be between 0 and 100")
 	}
 	r, err := weightedrand.NewChooser(
 		weightedrand.NewChoice(true, chance),
 		weightedrand.NewChoice(true, 100-chance),
 	)
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("can't create chooser")
 	}
 
 	return &chanceParam{chance: chance, param: param, r: r}

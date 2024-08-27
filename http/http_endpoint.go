@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/HenriBeck/goload"
+	"github.com/rs/zerolog/log"
 	"io"
 	"net/http"
 	"net/url"
@@ -32,49 +33,73 @@ type endpoint struct {
 
 	client *http.Client
 
-	urlFunc    func() *url.URL
-	methodFunc func() string
-	bodyFunc   func() io.Reader
-	headerFunc func() http.Header
+	urlFunc    func() (*url.URL, error)
+	methodFunc func() (string, error)
+	bodyFunc   func() (io.Reader, error)
+	headerFunc func() (http.Header, error)
 
 	validateResponse func(response *http.Response) error
 }
 
 func (e *endpoint) Execute(ctx context.Context) goload.ExecutionResponse {
-	var body io.Reader
-	if e.bodyFunc != nil {
-		body = e.bodyFunc()
+	response := goload.ExecutionResponse{
+		Identifier: e.name,
 	}
 
-	fullURL := e.urlFunc().String()
-	req, err := http.NewRequestWithContext(ctx, e.methodFunc(), fullURL, body)
-	if err != nil {
-		return goload.ExecutionResponse{
-			Identifier: e.name,
-			Err:        err,
+	var body io.Reader
+	if e.bodyFunc != nil {
+		var err error
+		body, err = e.bodyFunc()
+		if err != nil {
+			response.Err = err
+			log.Error().Err(err).Msg("failed to get body")
+			return response
 		}
 	}
 
+	targetURL, err := e.urlFunc()
+	if err != nil {
+		response.Err = err
+		log.Error().Err(err).Msg("failed to get target URL")
+		return response
+	}
+	targetURLStr := targetURL.String()
+
+	method, err := e.methodFunc()
+	if err != nil {
+		response.Err = err
+		log.Error().Err(err).Msg("failed to get method")
+		return response
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, targetURLStr, body)
+	if err != nil {
+		response.Err = err
+		log.Error().Err(err).Msg("failed to create request")
+		return response
+	}
+
 	if e.headerFunc != nil {
-		req.Header = e.headerFunc()
+		headers, err := e.headerFunc()
+		if err != nil {
+			response.Err = err
+			log.Error().Err(err).Msg("failed to get headers")
+			return response
+		}
+		req.Header = headers
 	}
 
 	res, err := e.client.Do(req)
 	if err != nil {
-		return goload.ExecutionResponse{
-			Identifier: e.name,
-			Err:        err,
-		}
+		response.Err = err
+		log.Error().Err(err).Msg("failed to execute request")
+		return response
 	}
 
 	defer res.Body.Close()
 
-	response := goload.ExecutionResponse{
-		Identifier: e.name,
-		Err:        nil,
-		AdditionalData: map[string]string{
-			"url": fullURL,
-		},
+	response.AdditionalData = map[string]string{
+		"url": targetURLStr,
 	}
 
 	if e.validateResponse != nil {

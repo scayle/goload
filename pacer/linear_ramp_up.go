@@ -1,6 +1,7 @@
 package pacer
 
 import (
+	"github.com/rs/zerolog/log"
 	"math"
 	"time"
 )
@@ -33,7 +34,7 @@ func (p linearRampUpPacer) Pace(elapsed time.Duration, hits uint64) time.Duratio
 	case p.StartRate.Per == 0 || p.StartRate.Freq == 0:
 		return 0 // Zero value = infinite rate
 	case p.StartRate.Per < 0 || p.StartRate.Freq < 0:
-		panic("rate can't be negative")
+		log.Fatal().Msg("rate can't be negative")
 	}
 
 	expectedHits := p.expectedHits(elapsed)

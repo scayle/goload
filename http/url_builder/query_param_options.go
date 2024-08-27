@@ -3,6 +3,7 @@ package url_builder
 import (
 	"github.com/HenriBeck/goload/utils/random"
 	"github.com/mroth/weightedrand/v2"
+	"github.com/rs/zerolog/log"
 	"strconv"
 )
 
@@ -16,14 +17,14 @@ func WithParamName(name string) QueryParameterOption {
 
 func WithParamUsagePercentage(pct int) QueryParameterOption {
 	if pct > 100 || pct < 0 {
-		panic("WithParamUsagePercentage value must be between 0 and 100")
+		log.Fatal().Msg("WithParamUsagePercentage pct must be between 0 and 100")
 	}
 	r, err := weightedrand.NewChooser(
 		weightedrand.NewChoice(true, pct),
 		weightedrand.NewChoice(true, 100-pct),
 	)
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("can't create chooser")
 	}
 
 	return func(param *QueryParameter) {
@@ -58,7 +59,7 @@ type WeightedValueOpt struct {
 
 func WithWeightedParamValue(opts ...WeightedValueOpt) QueryParameterOption {
 	if len(opts) == 0 {
-		panic("WithWeightedParamValue opts can't be empty")
+		log.Fatal().Msg("WithWeightedParamValue must have at least one option")
 	}
 	values := make([]weightedrand.Choice[string, int], 0, len(opts))
 	for _, opt := range opts {
@@ -67,7 +68,7 @@ func WithWeightedParamValue(opts ...WeightedValueOpt) QueryParameterOption {
 
 	r, err := weightedrand.NewChooser(values...)
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("can't create chooser")
 	}
 
 	return func(param *QueryParameter) {
@@ -79,7 +80,7 @@ func WithWeightedParamValue(opts ...WeightedValueOpt) QueryParameterOption {
 
 func WithOneOfParamValue(values []string) QueryParameterOption {
 	if len(values) == 0 {
-		panic("one off values needs at least one option")
+		log.Fatal().Msg("WithOneOfParamValue must have at least one value")
 	}
 	return func(param *QueryParameter) {
 		param.Value = func() []string {

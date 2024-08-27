@@ -17,8 +17,8 @@ func renderAndValidateOptions(opts []EndpointOption) (*endpoint, error) {
 		timeout: 0,
 		client:  defaultClient,
 		urlFunc: nil,
-		methodFunc: func() string {
-			return http.MethodGet
+		methodFunc: func() (string, error) {
+			return http.MethodGet, nil
 		},
 		bodyFunc:         nil,
 		headerFunc:       nil,
@@ -34,7 +34,11 @@ func renderAndValidateOptions(opts []EndpointOption) (*endpoint, error) {
 	}
 
 	if endpoint.name == "" {
-		endpoint.name = endpoint.urlFunc().Path
+		targetURL, err := endpoint.urlFunc()
+		if err != nil {
+			return nil, err
+		}
+		endpoint.name = targetURL.Path
 	}
 
 	return &endpoint, nil
@@ -66,24 +70,24 @@ func WithClient(client http.Client) EndpointOption {
 
 func WithURL(rawURL string) EndpointOption {
 	return func(ep *endpoint) {
-		ep.urlFunc = func() *url.URL {
+		ep.urlFunc = func() (*url.URL, error) {
 			if basePath != nil {
 				var err error
 				rawURL, err = url.JoinPath(*basePath, rawURL)
 				if err != nil {
-					panic(err)
+					return nil, err
 				}
 			}
 			u, err := url.Parse(rawURL)
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
-			return u
+			return u, nil
 		}
 	}
 }
 
-func WithURLFunc(urlFunc func() *url.URL) EndpointOption {
+func WithURLFunc(urlFunc func() (*url.URL, error)) EndpointOption {
 	return func(ep *endpoint) {
 		ep.urlFunc = urlFunc
 	}
@@ -91,19 +95,19 @@ func WithURLFunc(urlFunc func() *url.URL) EndpointOption {
 
 func WithMethod(method string) EndpointOption {
 	return func(ep *endpoint) {
-		ep.methodFunc = func() string {
-			return method
+		ep.methodFunc = func() (string, error) {
+			return method, nil
 		}
 	}
 }
 
-func WithMethodFunc(methodFunc func() string) EndpointOption {
+func WithMethodFunc(methodFunc func() (string, error)) EndpointOption {
 	return func(ep *endpoint) {
 		ep.methodFunc = methodFunc
 	}
 }
 
-func WithBodyFunc(bodyFunc func() io.Reader) EndpointOption {
+func WithBodyFunc(bodyFunc func() (io.Reader, error)) EndpointOption {
 	return func(ep *endpoint) {
 		ep.bodyFunc = bodyFunc
 	}
@@ -111,13 +115,13 @@ func WithBodyFunc(bodyFunc func() io.Reader) EndpointOption {
 
 func WithHeader(header http.Header) EndpointOption {
 	return func(ep *endpoint) {
-		ep.headerFunc = func() http.Header {
-			return header
+		ep.headerFunc = func() (http.Header, error) {
+			return header, nil
 		}
 	}
 }
 
-func WithHeaderFunc(headerFunc func() http.Header) EndpointOption {
+func WithHeaderFunc(headerFunc func() (http.Header, error)) EndpointOption {
 	return func(ep *endpoint) {
 		ep.headerFunc = headerFunc
 	}
@@ -132,7 +136,7 @@ func WithValidateResponse(validationFunc func(response *http.Response) error) En
 func WithURLBuilder(opts ...url_builder.URLBuilderOption) EndpointOption {
 	builder := url_builder.NewURLBuilder(opts)
 	return func(ep *endpoint) {
-		ep.urlFunc = func() *url.URL {
+		ep.urlFunc = func() (*url.URL, error) {
 			return builder.Build(basePath)
 		}
 	}
