@@ -3,8 +3,8 @@ package goload_http
 import (
 	"context"
 	"fmt"
-	"github.com/HenriBeck/goload"
 	"github.com/rs/zerolog/log"
+	"github.com/scayle/goload"
 	"io"
 	"net/http"
 	"net/url"

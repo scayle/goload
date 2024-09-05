@@ -2,8 +2,8 @@ package goload_http
 
 import (
 	"errors"
-	"github.com/HenriBeck/goload"
-	"github.com/HenriBeck/goload/http/url_builder"
+	"github.com/scayle/goload"
+	"github.com/scayle/goload/http/url_builder"
 	"io"
 	"net/http"
 	"net/url"

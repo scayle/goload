@@ -2,7 +2,7 @@ package goload
 
 import (
 	"context"
-	"github.com/HenriBeck/goload/pacer"
+	"github.com/scayle/goload/pacer"
 	"time"
 )
 

@@ -1,9 +1,9 @@
 package url_builder
 
 import (
-	"github.com/HenriBeck/goload/utils/random"
 	"github.com/mroth/weightedrand/v2"
 	"github.com/rs/zerolog/log"
+	"github.com/scayle/goload/utils/random"
 	"strconv"
 )
 

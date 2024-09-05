@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/HenriBeck/goload"
-	goload_http "github.com/HenriBeck/goload/http"
-	"github.com/HenriBeck/goload/http/url_builder"
-	"github.com/HenriBeck/goload/pacer"
+	"github.com/scayle/goload"
+	goload_http "github.com/scayle/goload/http"
+	"github.com/scayle/goload/http/url_builder"
+	"github.com/scayle/goload/pacer"
 	"time"
 )
 
