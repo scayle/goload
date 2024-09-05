@@ -1,4 +1,4 @@
-module github.com/scayle/goload
+module github.com/HenriBeck/goload
 
 go 1.21
 

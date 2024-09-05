@@ -2,8 +2,8 @@ package url_builder
 
 import (
 	"fmt"
+	"github.com/HenriBeck/goload/utils/random"
 	"github.com/rs/zerolog/log"
-	"github.com/scayle/goload/utils/random"
 	"net/url"
 	"strings"
 )

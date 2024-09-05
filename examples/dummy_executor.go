@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/scayle/goload"
+	"github.com/HenriBeck/goload"
 )
 
 type DummyExecutor struct {

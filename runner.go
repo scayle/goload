@@ -2,9 +2,9 @@ package goload
 
 import (
 	"context"
+	"github.com/HenriBeck/goload/pacer"
 	"github.com/mroth/weightedrand/v2"
 	"github.com/rs/zerolog/log"
-	"github.com/scayle/goload/pacer"
 	"sync"
 	"time"
 )
