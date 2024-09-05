@@ -37,6 +37,8 @@ type LoadTestOptions struct {
 	resultHandlers  []resultHandler
 	weightOverrides map[string]int
 	reportInterval  time.Duration
+	ctxModifier     func(ctx context.Context) context.Context
+	defaultTimeout  time.Duration
 }
 type LoadTestOption func(*LoadTestOptions)
 

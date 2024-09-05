@@ -1,6 +1,7 @@
 package goload
 
 import (
+	"context"
 	"github.com/HenriBeck/goload/pacer"
 	"time"
 )
@@ -50,6 +51,18 @@ func WithMaxWorkerCount(count int) LoadTestOption {
 func WithAdditionalResultHandler(handler resultHandler) LoadTestOption {
 	return func(options *LoadTestOptions) {
 		options.resultHandlers = append(options.resultHandlers, handler)
+	}
+}
+
+func WithContextModifier(fn func(ctx context.Context) context.Context) LoadTestOption {
+	return func(options *LoadTestOptions) {
+		options.ctxModifier = fn
+	}
+}
+
+func WithDefaultTimeout(timeout time.Duration) LoadTestOption {
+	return func(options *LoadTestOptions) {
+		options.defaultTimeout = timeout
 	}
 }
 

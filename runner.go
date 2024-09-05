@@ -16,6 +16,9 @@ type Runner struct {
 	maxWorkers      int
 	weightOverrides map[string]int
 
+	ctxModifier    func(ctx context.Context) context.Context
+	defaultTimeout time.Duration
+
 	startedAt *time.Time
 }
 
@@ -26,6 +29,8 @@ func NewRunner(loadTestOptions LoadTestOptions) *Runner {
 		workers:         loadTestOptions.initialWorkers,
 		maxWorkers:      loadTestOptions.maxWorkers,
 		weightOverrides: loadTestOptions.weightOverrides,
+		ctxModifier:     loadTestOptions.ctxModifier,
+		defaultTimeout:  loadTestOptions.defaultTimeout,
 		startedAt:       nil,
 	}
 
@@ -155,6 +160,14 @@ func (r *Runner) hit(ex Executor, began time.Time) *Result {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(context.Background(), ex.Options().Timeout)
 		defer cancel()
+	} else if r.defaultTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), ex.Options().Timeout)
+		defer cancel()
+	}
+
+	if r.ctxModifier != nil {
+		ctx = r.ctxModifier(ctx)
 	}
 
 	resp := ex.Execute(ctx)
