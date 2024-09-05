@@ -3,174 +3,130 @@ package goload
 import (
 	"context"
 	"fmt"
+	"github.com/HenriBeck/goload/pacer"
+	ctx_utils "github.com/HenriBeck/goload/utils/ctx"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"math"
 	"os"
-	"os/signal"
-	"sync"
-	"syscall"
 	"time"
 )
 
+type resultHandler func(lt *LoadTest, result *Result)
+
 type LoadTest struct {
-	UI      *UI
-	Options *LoadTestOptions
-	Results *LoadTestResults
+	Pacer     pacer.Pacer
+	Runner    *Runner
+	Executors []Executor
 
-	done   chan bool
-	ticker *time.Ticker
+	duration time.Duration
+
+	resultHandlers   []resultHandler
+	resultAggregator *resultAggregator
+	reportInterval   time.Duration
+
+	done chan struct{}
 }
 
-func RunLoadtest(configs ...LoadTestConfig) {
-	options := &LoadTestOptions{}
-	for _, config := range configs {
-		config(options)
-	}
-
-	ui := NewUI(os.Stdout)
-
-	ui.PrintStartMessage()
-
-	loadtest := &LoadTest{
-		Options: options,
-		Results: NewResults(options.Endpoints),
-		UI:      ui,
-
-		done:   make(chan bool),
-		ticker: initializeTicker(options, ui),
-	}
-
-	loadtest.WaitForLoadTestEnd()
-	loadtest.ListenForAbort()
-
-	loadtest.Run()
-
-	ui.ReportResults(loadtest.Results)
+type LoadTestOptions struct {
+	pacer           pacer.Pacer
+	executors       []Executor
+	duration        time.Duration
+	initialWorkers  int
+	maxWorkers      int
+	resultHandlers  []resultHandler
+	weightOverrides map[string]int
+	reportInterval  time.Duration
+	ctxModifier     func(ctx context.Context) context.Context
+	defaultTimeout  time.Duration
 }
+type LoadTestOption func(*LoadTestOptions)
 
-func (loadtest *LoadTest) WaitForLoadTestEnd() {
-	duration := loadtest.Options.LoadTestDuration
-	if duration.Nanoseconds() == 0 {
-		return
-	}
+func RunLoadTest(opts ...LoadTestOption) {
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
 
-	// Cancel the timer after the duration of the loadtest has elapsed
-	go func() {
-		time.Sleep(duration)
-		loadtest.done <- true
-		loadtest.ticker.Stop()
-	}()
-}
-
-func (loadtest *LoadTest) ListenForAbort() {
-	// Cancel the loadtest if the program is stopped using OS signals
-	go func() {
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, os.Interrupt, os.Kill, syscall.SIGTERM)
-
-		<-ch
-
-		fmt.Println()
-		loadtest.UI.PrintAbortMessage()
-
-		loadtest.done <- true
-		loadtest.ticker.Stop()
-	}()
-}
-
-func initializeTicker(options *LoadTestOptions, ui *UI) *time.Ticker {
-	initialRPM := options.RPMStrategy.GetRPMForMinute(0)
-	ticker := time.NewTicker(
-		time.Minute / time.Duration(initialRPM),
-	)
-
-	ui.ReportInitialRPM(initialRPM)
-
-	go func() {
-		minute := int32(0)
-		previousRPM := initialRPM
-		t := time.NewTicker(time.Minute)
-
-		for range t.C {
-			minute++
-			rpm := options.RPMStrategy.GetRPMForMinute(minute)
-
-			if previousRPM == rpm {
-				continue
-			}
-
-			if previousRPM < rpm {
-				ui.ReportIncreaseInRPM(rpm)
-			} else {
-				ui.ReportDecreaseInRPM(rpm)
-			}
-
-			ticker.Reset(
-				time.Minute / time.Duration(rpm),
-			)
-			previousRPM = rpm
-		}
-	}()
-
-	return ticker
-}
-
-func (loadtest *LoadTest) Run() {
-	endpointRandomizer, err := NewEndpointRandomizer(
-		loadtest.Options.Endpoints,
-		loadtest.Options.RequestPerMinutePerEndpoint,
-	)
+	// set default options
+	options, err := renderAndValidateOptions(opts)
 	if err != nil {
-		panic(err)
+		fmt.Printf("Invalid options: %v\n", err)
+		os.Exit(1)
 	}
-	g := new(sync.WaitGroup)
 
-loop:
-	for {
-		select {
-		case <-loadtest.done:
-			break loop
+	resultAggregator := newResultAggregator()
+	options.resultHandlers = append(options.resultHandlers, resultAggregator.resultAggregationHandler)
 
-		case <-loadtest.ticker.C:
-			go func() {
-				g.Add(1)
-				defer g.Done()
+	loadTest := &LoadTest{
+		Pacer:            options.pacer,
+		Runner:           NewRunner(options),
+		Executors:        options.executors,
+		duration:         options.duration,
+		resultHandlers:   options.resultHandlers,
+		resultAggregator: resultAggregator,
+		reportInterval:   options.reportInterval,
+		done:             make(chan struct{}),
+	}
 
-				endpoint := endpointRandomizer.PickRandomEndpoint()
+	ctx := ctx_utils.ContextWithInterrupt(context.Background())
 
-				ctx := context.Background()
-				for _, fn := range loadtest.Options.ContextModifiers {
-					ctx = fn(ctx)
-				}
+	loadTest.Run(ctx)
+}
 
-				var timeout time.Duration
-				switch {
-				case endpoint.Options().Timeout.Nanoseconds() > 0:
-					timeout = endpoint.Options().Timeout
-				case loadtest.Options.DefaultEndpointTimeout.Nanoseconds() > 0:
-					timeout = loadtest.Options.DefaultEndpointTimeout
-				}
+func (lt *LoadTest) Run(ctx context.Context) {
+	resultChan := lt.Runner.Run(ctx, lt.Executors, lt.Pacer, lt.duration)
+	lt.runReporter(ctx)
 
-				if timeout.Nanoseconds() > 0 {
-					_ctx, cancel := context.WithTimeout(ctx, timeout)
-					defer cancel()
-
-					ctx = _ctx
-				}
-
-				startTime := time.Now()
-				err := endpoint.Execute(ctx)
-				duration := time.Since(startTime)
-
-				loadtest.Results.SaveEndpointResult(
-					endpoint,
-					EndpointResult{
-						Failed:   err != nil,
-						Duration: duration,
-					},
-				)
-			}()
+	for result := range resultChan {
+		for _, handler := range lt.resultHandlers {
+			handler(lt, result)
 		}
 	}
+	close(lt.done)
+}
 
-	// Wait until all requests have finished
-	g.Wait()
+func (lt *LoadTest) runReporter(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(lt.reportInterval)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				fmt.Printf("expected pace: %.2f/s\n", lt.Pacer.Rate(time.Now().Sub(*lt.Runner.startedAt)))
+				fmt.Printf("actual pace: %.2f/s\n", float64(lt.resultAggregator.rateCounter.Rate())/10)
+				fmt.Printf("total hits: %d\n", lt.resultAggregator.total.Load())
+				fmt.Printf("total failures: %d\n", lt.resultAggregator.failures.Load())
+			}
+		}
+	}()
+}
+
+var defaultResultHandlers []resultHandler
+
+func renderAndValidateOptions(opts []LoadTestOption) (LoadTestOptions, error) {
+	options := LoadTestOptions{
+		pacer:           nil,
+		executors:       nil,
+		duration:        0,
+		initialWorkers:  10,
+		maxWorkers:      math.MaxInt,
+		resultHandlers:  defaultResultHandlers,
+		weightOverrides: nil,
+		reportInterval:  10 * time.Second,
+	}
+
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	if options.pacer == nil {
+		return LoadTestOptions{}, fmt.Errorf("pacer is required")
+	}
+	if len(options.executors) == 0 {
+		return LoadTestOptions{}, fmt.Errorf("should define at least one executor")
+	}
+	if options.initialWorkers == 0 || options.maxWorkers == 0 {
+		return LoadTestOptions{}, fmt.Errorf("inital and max workers must be > 0")
+	}
+
+	return options, nil
 }

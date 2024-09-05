@@ -3,169 +3,128 @@ package goload_http
 import (
 	"context"
 	"fmt"
+	"github.com/HenriBeck/goload"
+	"github.com/rs/zerolog/log"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
-
-	"github.com/HenriBeck/goload"
 )
 
-type EndpointOptions struct {
-	name         string
-	endpointOpts []goload.EndpointOption
+var basePath *string
+
+type EndpointOption func(ep *endpoint)
+
+func NewEndpoint(opts ...EndpointOption) goload.Executor {
+	endpoint, err := renderAndValidateOptions(opts)
+	if err != nil {
+		fmt.Printf("Invalid Endpoint options: %v\n", err)
+		os.Exit(1)
+	}
+
+	return endpoint
+}
+
+type endpoint struct {
+	name    string
+	weight  int
+	timeout time.Duration
 
 	client *http.Client
 
-	getUrl func() url.URL
-	method string
-	body   io.Reader
-	header http.Header
+	urlFunc    func() (*url.URL, error)
+	methodFunc func() (string, error)
+	bodyFunc   func() (io.Reader, error)
+	headerFunc func() (http.Header, error)
 
 	validateResponse func(response *http.Response) error
 }
 
-func (options *EndpointOptions) Name() string {
-	// If an explicit endpoint name is provided we have dynamic URLs per request
-	if options.name != "" {
-		return options.name
+func (e *endpoint) Execute(ctx context.Context) goload.ExecutionResponse {
+	response := goload.ExecutionResponse{
+		Identifier: e.name,
 	}
 
-	// Otherwise this will resolve to a static URL which we will use as the endpoints name
-	uri := options.getUrl()
-
-	return fmt.Sprintf("%s %s", options.method, uri.String())
-}
-
-type HTTPEndpointOption func(options *EndpointOptions)
-
-// WithHTTPClient configures a static http defaultClient to be used for the loadtest endpoint.
-func WithHTTPClient(client *http.Client) HTTPEndpointOption {
-	return func(options *EndpointOptions) {
-		options.client = client
-	}
-}
-
-// WithHTTPMethod sets the HTTP method used for the requests.
-//
-// By default, the `Endpoint` will use an `GET` request.
-func WithHTTPMethod(method string) HTTPEndpointOption {
-	return func(options *EndpointOptions) {
-		options.method = method
-	}
-}
-
-func WithHeader(key string, value string) HTTPEndpointOption {
-	return func(options *EndpointOptions) {
-		options.header.Add(key, value)
-	}
-}
-
-// WithRequestsPerMinute configures the targeted requests per minute compared to other endpoints.
-func WithRequestsPerMinute(rpm int32) HTTPEndpointOption {
-	return func(options *EndpointOptions) {
-		options.endpointOpts = append(options.endpointOpts, goload.WithRequestsPerMinute(rpm))
-	}
-}
-
-// WithTimeout configures a specific timeout duration for the endpoint overriding the global config.
-func WithTimeout(timeout time.Duration) HTTPEndpointOption {
-	return func(options *EndpointOptions) {
-		options.endpointOpts = append(options.endpointOpts, goload.WithTimeout(timeout))
-	}
-}
-
-// WithURL allows setting a static URL for the loadtest endpoint.
-func WithURL(uri url.URL) HTTPEndpointOption {
-	return func(options *EndpointOptions) {
-		options.getUrl = func() url.URL {
-			return uri
+	var body io.Reader
+	if e.bodyFunc != nil {
+		var err error
+		body, err = e.bodyFunc()
+		if err != nil {
+			response.Err = err
+			log.Error().Err(err).Msg("failed to get body")
+			return response
 		}
 	}
-}
 
-// WithURLFunc allows for a dynamic creation of the URL per request made in the loadtest.
-//
-// An explicit endpoint name needs to be provided here for reporting purposes as an identifier.
-func WithURLFunc(endpointName string, getUrl func() url.URL) HTTPEndpointOption {
-	return func(options *EndpointOptions) {
-		options.name = endpointName
-		options.getUrl = getUrl
-	}
-}
-
-// WithURLString allows setting a static string URL for the loadtest endpoint.
-func WithURLString(uri string) HTTPEndpointOption {
-	parsedUri, err := url.Parse(uri)
+	targetURL, err := e.urlFunc()
 	if err != nil {
-		panic(err)
+		response.Err = err
+		log.Error().Err(err).Msg("failed to get target URL")
+		return response
+	}
+	targetURLStr := targetURL.String()
+
+	method, err := e.methodFunc()
+	if err != nil {
+		response.Err = err
+		log.Error().Err(err).Msg("failed to get method")
+		return response
 	}
 
-	return func(options *EndpointOptions) {
-		options.getUrl = func() url.URL {
-			return *parsedUri
+	req, err := http.NewRequestWithContext(ctx, method, targetURLStr, body)
+	if err != nil {
+		response.Err = err
+		log.Error().Err(err).Msg("failed to create request")
+		return response
+	}
+
+	if e.headerFunc != nil {
+		headers, err := e.headerFunc()
+		if err != nil {
+			response.Err = err
+			log.Error().Err(err).Msg("failed to get headers")
+			return response
+		}
+		req.Header = headers
+	}
+
+	res, err := e.client.Do(req)
+	if err != nil {
+		response.Err = err
+		log.Error().Err(err).Msg("failed to execute request")
+		return response
+	}
+
+	defer res.Body.Close()
+
+	response.AdditionalData = map[string]string{
+		"url": targetURLStr,
+	}
+
+	if e.validateResponse != nil {
+		if err := e.validateResponse(res); err != nil {
+			response.Err = err
 		}
 	}
+
+	return response
 }
 
-// WithValidateResponse allows to configure a custom check if the request should be counted as successful or not.
-//
-// By default, the request is successful if it returns a 2xx status code.
-func WithValidateResponse(validate func(res *http.Response) error) HTTPEndpointOption {
-	return func(options *EndpointOptions) {
-		options.validateResponse = validate
-	}
+func (e *endpoint) Name() string {
+	return e.name
 }
 
-// WithName allows manually setting the endpoint name
-func WithName(name string) HTTPEndpointOption {
-	return func(options *EndpointOptions) {
-		options.name = name
+func (e *endpoint) Options() *goload.ExecutorOptions {
+	return &goload.ExecutorOptions{
+		Weight:  e.weight,
+		Timeout: e.timeout,
 	}
 }
 
-// NewEndpoint creates a new HTTP based loadtest endpoint.
-//
-// To configure it you can use the functional options.
-func NewEndpoint(opts ...HTTPEndpointOption) goload.Endpoint {
-	options := &EndpointOptions{
-		method: http.MethodGet,
-		body:   http.NoBody,
-		client: defaultClient,
-		header: make(http.Header),
-		validateResponse: func(res *http.Response) error {
-			if res.StatusCode < 200 || res.StatusCode > 299 {
-				return fmt.Errorf("received non 200 status code from the server")
-			}
-
-			return nil
-		},
+func Status2xxResponseValidation(response *http.Response) error {
+	if response.StatusCode < 200 && response.StatusCode >= 300 {
+		return fmt.Errorf("non 2xx status code: %d", response.StatusCode)
 	}
-	for _, config := range opts {
-		config(options)
-	}
-
-	return goload.NewEndpoint(
-		options.Name(),
-		func(ctx context.Context) error {
-			uri := options.getUrl()
-
-			req, err := http.NewRequestWithContext(ctx, options.method, uri.String(), options.body)
-			if err != nil {
-				return err
-			}
-
-			req.Header = options.header
-
-			res, err := options.client.Do(req)
-			if err != nil {
-				return err
-			}
-
-			defer res.Body.Close()
-
-			return options.validateResponse(res)
-		},
-		options.endpointOpts...,
-	)
+	return nil
 }
