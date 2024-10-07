@@ -3,10 +3,10 @@ package goload
 import (
 	"context"
 	"fmt"
-	"github.com/HenriBeck/goload/pacer"
-	ctx_utils "github.com/HenriBeck/goload/utils/ctx"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/scayle/goload/pacer"
+	ctx_utils "github.com/scayle/goload/utils/ctx"
 	"math"
 	"os"
 	"time"
