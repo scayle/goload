@@ -162,7 +162,7 @@ func (r *Runner) hit(ex Executor, began time.Time) *Result {
 		defer cancel()
 	} else if r.defaultTimeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.Background(), ex.Options().Timeout)
+		ctx, cancel = context.WithTimeout(context.Background(), r.defaultTimeout)
 		defer cancel()
 	}
 
