@@ -26,6 +26,8 @@ func NewEndpoint(opts ...EndpointOption) goload.Executor {
 	return endpoint
 }
 
+type HeaderFunc func() (http.Header, error)
+
 type endpoint struct {
 	name    string
 	weight  int
@@ -33,10 +35,10 @@ type endpoint struct {
 
 	client *http.Client
 
-	urlFunc    func() (*url.URL, error)
-	methodFunc func() (string, error)
-	bodyFunc   func() (io.Reader, error)
-	headerFunc func() (http.Header, error)
+	urlFunc     func() (*url.URL, error)
+	methodFunc  func() (string, error)
+	bodyFunc    func() (io.Reader, error)
+	headerFuncs []HeaderFunc
 
 	validateResponse func(response *http.Response) error
 }
@@ -79,13 +81,23 @@ func (e *endpoint) Execute(ctx context.Context) goload.ExecutionResponse {
 		return response
 	}
 
-	if e.headerFunc != nil {
-		headers, err := e.headerFunc()
-		if err != nil {
-			response.Err = err
-			log.Error().Err(err).Msg("failed to get headers")
-			return response
+	if len(e.headerFuncs) > 0 {
+		headers := http.Header{}
+		for _, headerFunc := range e.headerFuncs {
+			additionalHeader, err := headerFunc()
+			if err != nil {
+				response.Err = err
+				log.Error().Err(err).Msg("failed to get headers")
+				return response
+			}
+
+			for key, values := range additionalHeader {
+				for _, value := range values {
+					headers.Add(key, value)
+				}
+			}
 		}
+
 		req.Header = headers
 	}
 
