@@ -21,7 +21,7 @@ func renderAndValidateOptions(opts []EndpointOption) (*endpoint, error) {
 			return http.MethodGet, nil
 		},
 		bodyFunc:         nil,
-		headerFunc:       nil,
+		headerFuncs:      []HeaderFunc{},
 		validateResponse: nil,
 	}
 
@@ -115,15 +115,15 @@ func WithBodyFunc(bodyFunc func() (io.Reader, error)) EndpointOption {
 
 func WithHeader(header http.Header) EndpointOption {
 	return func(ep *endpoint) {
-		ep.headerFunc = func() (http.Header, error) {
+		ep.headerFuncs = append(ep.headerFuncs, func() (http.Header, error) {
 			return header, nil
-		}
+		})
 	}
 }
 
 func WithHeaderFunc(headerFunc func() (http.Header, error)) EndpointOption {
 	return func(ep *endpoint) {
-		ep.headerFunc = headerFunc
+		ep.headerFuncs = append(ep.headerFuncs, headerFunc)
 	}
 }
 
